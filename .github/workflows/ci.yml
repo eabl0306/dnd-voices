@@ -25,6 +25,18 @@ jobs:
   e2e:
     name: E2E sobre el stack dockerizado
     runs-on: ubuntu-latest
+    # A nivel de job y no de paso: `docker compose logs` también interpola
+    # x-app-env, así que sin esto el paso de diagnóstico falla por su cuenta y
+    # oculta el error que venía a mostrar.
+    env:
+      BETTER_AUTH_SECRET: ci-secret-no-usar-en-produccion
+      # Los e2e salen todos de la misma IP: con el límite real de producción se
+      # estrangularían entre ellos.
+      AUTH_RATE_LIMIT_MAX: "1000"
+      # Los tests no llegan a llamar a ningún proveedor, pero la validación de
+      # entorno exige que las claves existan.
+      ANTHROPIC_API_KEY: ci-placeholder
+      ELEVENLABS_API_KEY: ci-placeholder
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -35,15 +47,6 @@ jobs:
       - run: npx playwright install --with-deps chromium
 
       - name: Levantar el stack
-        env:
-          BETTER_AUTH_SECRET: ci-secret-no-usar-en-produccion
-          # Los e2e salen todos de la misma IP: con el límite real de
-          # producción se estrangularían entre ellos.
-          AUTH_RATE_LIMIT_MAX: "1000"
-          # Los tests no llegan a llamar a ningún proveedor, pero la validación
-          # de entorno exige que las claves existan.
-          ANTHROPIC_API_KEY: ci-placeholder
-          ELEVENLABS_API_KEY: ci-placeholder
         run: docker compose up -d --build --wait
 
       - name: Ejecutar Playwright

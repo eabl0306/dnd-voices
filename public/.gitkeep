@@ -1,0 +1,2 @@
+# Git no versiona directorios vacíos, y el Dockerfile copia public/ a la imagen
+# del servidor. Sin este fichero, un clon limpio falla al construir.
