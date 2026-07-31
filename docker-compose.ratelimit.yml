@@ -1,0 +1,76 @@
+name: dndvoices-ratelimit
+
+# Stack aislado para probar el rate limit de autenticación.
+#
+# No puede ser el mismo que usan el resto de e2e: aquellos necesitan el límite
+# relajado para crear un usuario por caso, y éste necesita un límite bajo para
+# poder agotarlo. Al ser un proyecto de compose distinto, tiene su propia red,
+# sus volúmenes y su contador en memoria.
+#
+#   npm run test:e2e:ratelimit
+
+x-app-env: &app-env
+  DATABASE_URL: postgresql://dndvoices:dndvoices@postgres:5432/dndvoices
+  REDIS_URL: redis://redis:6379
+  BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?define BETTER_AUTH_SECRET en .env}
+  BETTER_AUTH_URL: http://localhost:3001
+  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-placeholder-no-se-usa}
+  ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-placeholder-no-se-usa}
+  STORAGE_DIR: /app/storage
+  # El valor que el test da por supuesto. Cambiarlo aquí obliga a cambiar
+  # RATE_LIMIT_MAX en el script de npm.
+  AUTH_RATE_LIMIT_MAX: "5"
+
+services:
+  # Sin puertos publicados: sólo los usa el web de este stack, y publicarlos
+  # chocaría con los del stack principal.
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: dndvoices
+      POSTGRES_PASSWORD: dndvoices
+      POSTGRES_DB: dndvoices
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dndvoices"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  migrate:
+    build:
+      context: .
+      target: migrate
+    environment: *app-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  web:
+    build:
+      context: .
+      target: web
+    environment: *app-env
+    ports:
+      - "3001:3000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3000/login').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
+
+# El worker no hace falta: este stack sólo ejercita endpoints de auth.

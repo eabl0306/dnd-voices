@@ -63,15 +63,25 @@ renders no arrancan.
 ## Tests
 
 ```bash
-npm run test           # unitarios (Vitest)
-npm run test:coverage  # unitarios con cobertura
-npm run test:e2e       # e2e contra `npm run dev`
-npm run test:e2e:docker # e2e contra el stack dockerizado
+npm run test              # unitarios (Vitest)
+npm run test:coverage     # unitarios con cobertura
+npm run test:e2e          # e2e contra `npm run dev`
+npm run test:e2e:docker   # e2e contra el stack dockerizado
+npm run test:e2e:ratelimit # rate limit de auth, en un stack aparte
 ```
 
-Los e2e crean un usuario propio por caso para poder correr en paralelo. Contra
-Docker se sube `AUTH_RATE_LIMIT_MAX`, porque todos los casos salen de la misma
-IP y el límite real de producción los estrangularía entre ellos.
+Los e2e crean un usuario propio por caso para poder correr en paralelo, y todos
+salen de la misma IP. Por eso `test:e2e:docker` sube `AUTH_RATE_LIMIT_MAX` a
+1000: con el valor real de producción se estrangularían entre ellos.
+
+Lanzar `playwright test` a mano contra un `docker compose up` normal falla por
+ese motivo, y el error no lo deja claro. Usa los scripts.
+
+Como consecuencia, esa suite no comprueba que el límite bloquee nada. Eso lo
+cubre `test:e2e:ratelimit`, que levanta un segundo stack en el puerto 3001 con
+el límite en 5, agota el alta y verifica que los cinco primeros intentos pasan
+y los siguientes reciben un 429. Va en serie y sin reintentos: el contador es
+por IP y vive en el servidor.
 
 ## Cómo está organizado
 
