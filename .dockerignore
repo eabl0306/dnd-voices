@@ -1,0 +1,15 @@
+node_modules
+.next
+.git
+.env
+.env.*
+!.env.example
+storage
+coverage
+test-results
+playwright-report
+.tmp-test-storage
+Dockerfile
+docker-compose*.yml
+README.md
+dist

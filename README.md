@@ -1,36 +1,141 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# DnD Voices
 
-## Getting Started
+Convierte el texto de una sesión de rol en audio con una voz por personaje.
 
-First, run the development server:
+El flujo es: pegas el texto crudo de la escena → Claude identifica quién dice qué →
+ElevenLabs sintetiza cada intervención con la voz de su personaje → ffmpeg monta
+todo con pausas y normaliza el resultado.
+
+## Stack
+
+| Pieza | Elección |
+|---|---|
+| App | Next.js 16 (App Router) + React 19 + TypeScript estricto |
+| Base de datos | PostgreSQL + Prisma 7 |
+| Auth | better-auth (email + contraseña) con rate limit propio |
+| Cola | BullMQ + Redis, con un worker aparte |
+| Atribución y casting | Claude (`claude-opus-5`) con structured outputs |
+| Voz | ElevenLabs (Voice Design + Text to Speech) |
+| Montaje de audio | ffmpeg |
+| Tests | Vitest (unitarios) + Playwright (e2e) |
+
+## Puesta en marcha
+
+Sólo hace falta Docker.
+
+```bash
+cp .env.example .env      # rellena ANTHROPIC_API_KEY y ELEVENLABS_API_KEY
+docker compose up -d --build
+```
+
+Arranca Postgres, Redis, las migraciones, el servidor web y el worker.
+La app queda en <http://localhost:3000>.
+
+Genera el secreto de sesión con:
+
+```bash
+openssl rand -base64 32
+```
+
+### Desarrollo con recarga en caliente
+
+Sólo la infraestructura en Docker; la app en el host. Necesitas Node 20+ y ffmpeg.
+
+```bash
+docker compose -f docker-compose.dev.yml up -d
+npm install
+npx prisma migrate deploy
+```
+
+Después, dos procesos:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+```bash
+npm run worker
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+El worker es obligatorio: sin él las voces se quedan en «asignando voz…» y los
+renders no arrancan.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Tests
 
-## Learn More
+```bash
+npm run test           # unitarios (Vitest)
+npm run test:coverage  # unitarios con cobertura
+npm run test:e2e       # e2e contra `npm run dev`
+npm run test:e2e:docker # e2e contra el stack dockerizado
+```
 
-To learn more about Next.js, take a look at the following resources:
+Los e2e crean un usuario propio por caso para poder correr en paralelo. Contra
+Docker se sube `AUTH_RATE_LIMIT_MAX`, porque todos los casos salen de la misma
+IP y el límite real de producción los estrangularía entre ellos.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Cómo está organizado
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```
+src/lib/ai/prompts/         Prompts, separados de la lógica de llamada
+src/lib/ai/attribution.ts   Texto crudo → líneas atribuidas (structured output)
+src/lib/ai/casting.ts       Trasfondo → brief de Voice Design o voz del pool
+src/lib/tts/elevenlabs.ts   Voice Design, TTS y catálogo de voces
+src/lib/audio/filter-graph.ts  Grafo de filtros de ffmpeg (puro, testeable)
+src/lib/render/cache-key.ts    Clave de caché de un clip (pura, testeable)
+src/lib/render/line-mapper.ts  Nombres de Claude → reparto real (pura, testeable)
+src/lib/render/scene.ts     Orquesta el render de una escena
+src/worker/index.ts         Consume las colas de render y de casting
+```
 
-## Deploy on Vercel
+La lógica que decide algo está en funciones puras y con tests; los módulos que
+hablan con la red o el disco quedan reducidos a plomería.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Decisiones que conviene conocer
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+**El texto crudo es la fuente de verdad.** Las líneas atribuidas se regeneran a
+partir de él; editarlo devuelve la escena a `DRAFT` para dejar claro que hay que
+volver a analizar antes de renderizar.
+
+**Los clips se cachean por contenido.** La clave es
+`hash(modelo + voiceId + idioma + texto + ajustes)`, con prefijo de longitud en
+cada parte para que `("ab","c")` y `("a","bc")` no colisionen. Corregir una línea
+sólo regenera ese clip: el resto sale de disco. ElevenLabs factura por carácter,
+así que esto es la diferencia entre iterar y arruinarse. Cada render reporta
+cuántas líneas vinieron de caché y cuántos caracteres se facturaron.
+
+**Dos breakpoints de caché en los prompts de Claude.** Las instrucciones globales
+son idénticas en toda la instancia; el roster y la ambientación son idénticos en
+todas las escenas de una campaña. Sólo el texto de la escena va después del
+último breakpoint. El mínimo cacheable en `claude-opus-5` son 512 tokens: hay un
+test que falla si el prompt baja de ahí, porque por debajo deja de cachear en
+silencio.
+
+**Todo cliente externo se construye al primer uso.** Base de datos, auth, colas y
+SDKs pasan por `lazyProxy`: `next build` evalúa cada módulo del servidor para
+recolectar rutas, y un cliente construido al importar exigiría tener las
+credenciales de producción durante la compilación.
+
+**La normalización de audio se hace al final, no clip a clip.** Normalizar cada
+voz por separado aplanaría justo el contraste entre un susurro y un grito.
+
+**Dos estrategias de voz.** `DESIGNED` genera una voz única con Voice Design y
+consume un slot del plan de ElevenLabs; `POOL` reutiliza una voz existente y sólo
+ajusta `stability`/`similarityBoost`/`style`/`speed`. El narrador y los
+protagonistas usan la primera, los secundarios la segunda: los planes limitan
+cuántas voces propias puedes guardar, y varias campañas agotan la cuota rápido.
+
+**La confianza de la atribución es honesta a propósito.** Por debajo de 0.7 la
+línea se marca en ámbar para revisión manual. Un prompt que devolviera siempre
+1.0 haría inútil ese aviso.
+
+**El worker va compilado, no interpretado.** Se empaqueta con esbuild a un único
+`.mjs`, así que la imagen no lleva ni `tsx` ni el binario de esbuild.
+
+## Pendiente
+
+- Elegir manualmente entre las previews de Voice Design (ahora se guarda la primera).
+- Música y ambiente de fondo bajo la mezcla.
+- Storage en S3/R2: `src/lib/storage/index.ts` está aislado para eso.
+- Persistir el rate limit fuera de memoria si se escala el web a varias réplicas.
+- Evaluar `eleven_v3` y el endpoint *Text to Dialogue*, que genera un único audio
+  multi-voz con transiciones más naturales que concatenar clips.

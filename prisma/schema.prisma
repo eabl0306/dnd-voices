@@ -1,0 +1,215 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+// La URL vive en prisma.config.ts: desde Prisma 7 el schema no la acepta.
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Auth (better-auth core tables)
+// ---------------------------------------------------------------------------
+
+model User {
+  id            String     @id
+  name          String
+  email         String     @unique
+  emailVerified Boolean    @default(false)
+  image         String?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  sessions      Session[]
+  accounts      Account[]
+  campaigns     Campaign[]
+
+  @@map("user")
+}
+
+model Session {
+  id        String   @id
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id
+  userId                String
+  accountId             String
+  providerId            String
+  accessToken           String?
+  refreshToken          String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  idToken               String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("verification")
+}
+
+// ---------------------------------------------------------------------------
+// Domain
+// ---------------------------------------------------------------------------
+
+model Campaign {
+  id          String      @id @default(cuid())
+  userId      String
+  name        String
+  /// Ambientación y tono: alimenta la atribución de hablantes y el casting de voces.
+  setting     String      @default("")
+  /// Idioma ISO-639-1 de la partida. Se pasa a ElevenLabs como languageCode.
+  language    String      @default("es")
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  characters  Character[]
+  scenes      Scene[]
+
+  @@index([userId])
+}
+
+enum VoiceStrategy {
+  /// Voz única generada con Voice Design a partir de la descripción del personaje.
+  DESIGNED
+  /// Voz del pool compartido + ajustes propios de stability/similarity/style.
+  POOL
+}
+
+enum VoiceStatus {
+  PENDING
+  READY
+  FAILED
+}
+
+model Character {
+  id            String        @id @default(cuid())
+  campaignId    String
+  name          String
+  /// Aspecto, edad, acento, timbre: entra en el prompt de Voice Design.
+  description   String        @default("")
+  backstory     String        @default("")
+  /// El narrador es un Character más, con isNarrator = true.
+  isNarrator    Boolean       @default(false)
+  /// Alias por los que el texto puede referirse al personaje ("el enano", "Thorin").
+  aliases       String[]      @default([])
+
+  voiceStrategy VoiceStrategy @default(POOL)
+  voiceStatus   VoiceStatus   @default(PENDING)
+  /// voice_id de ElevenLabs. Null hasta que la voz esté creada/asignada.
+  voiceId       String?
+  /// Prompt de Voice Design o justificación del casting, según la estrategia.
+  voiceBrief    String?
+  /// VoiceSettings de ElevenLabs (stability, similarityBoost, style, speed...).
+  voiceSettings Json?
+  voiceError    String?
+
+  campaign      Campaign      @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  lines         Line[]
+
+  @@unique([campaignId, name])
+  @@index([campaignId])
+}
+
+enum SceneStatus {
+  DRAFT
+  PARSING
+  PARSED
+  RENDERING
+  RENDERED
+  FAILED
+}
+
+model Scene {
+  id         String      @id @default(cuid())
+  campaignId String
+  title      String
+  /// Texto crudo tal cual lo pega el DM, antes de identificar hablantes.
+  rawText    String      @default("")
+  status     SceneStatus @default(DRAFT)
+  error      String?
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  campaign   Campaign    @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  lines      Line[]
+  renders    Render[]
+
+  @@index([campaignId])
+}
+
+/// Una intervención: un tramo de texto atribuido a un personaje o al narrador.
+model Line {
+  id          String     @id @default(cuid())
+  sceneId     String
+  characterId String?
+  order       Int
+  text        String
+  /// Indicación emocional que Claude extrae del contexto ("furioso", "susurrando").
+  delivery    String?
+  /// Confianza de la atribución (0-1). Por debajo del umbral se marca para revisión.
+  confidence  Float      @default(1)
+  /// Pausa en ms que se inserta después de esta línea al montar el audio.
+  pauseAfter  Int        @default(350)
+
+  /// Clave de caché: hash(text + voiceId + settings + model). Evita re-facturar TTS.
+  cacheKey    String?
+  /// Ruta del clip ya renderizado, relativa al root de storage.
+  audioPath   String?
+  durationMs  Int?
+
+  scene       Scene      @relation(fields: [sceneId], references: [id], onDelete: Cascade)
+  character   Character? @relation(fields: [characterId], references: [id], onDelete: SetNull)
+
+  @@unique([sceneId, order])
+  @@index([cacheKey])
+}
+
+enum RenderStatus {
+  QUEUED
+  RUNNING
+  DONE
+  FAILED
+}
+
+model Render {
+  id           String       @id @default(cuid())
+  sceneId      String
+  status       RenderStatus @default(QUEUED)
+  progress     Int          @default(0)
+  /// Líneas servidas desde caché en esta ejecución: mide el ahorro real.
+  cacheHits    Int          @default(0)
+  charsBilled  Int          @default(0)
+  audioPath    String?
+  durationMs   Int?
+  error        String?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  scene        Scene        @relation(fields: [sceneId], references: [id], onDelete: Cascade)
+
+  @@index([sceneId])
+}
