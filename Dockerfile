@@ -38,6 +38,12 @@ CMD ["npx", "prisma", "migrate", "deploy"]
 # --- Servidor web ------------------------------------------------------------
 FROM base AS web
 ENV NODE_ENV=production PORT=3000 HOSTNAME=0.0.0.0
+# ffmpeg también aquí, y no sólo en el worker: regenerar el clip de una línea
+# suelta se resuelve en la petición —es una llamada al proveedor, no un montaje—
+# y mide la duración con ffprobe. Sin esto esa ruta responde 500 en producción.
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends ffmpeg \
+  && rm -rf /var/lib/apt/lists/*
 # El chown va en el COPY: un `RUN chown -R` posterior duplicaría en una capa
 # nueva todo lo copiado.
 COPY --from=build --chown=node:node /app/.next/standalone ./

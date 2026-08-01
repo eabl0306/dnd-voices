@@ -35,6 +35,9 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# La plantilla sí se versiona: sin ella, un clon recién hecho en el servidor no
+# tiene de dónde partir y `make setup` no encuentra qué copiar.
+!.env.example
 
 # vercel
 .vercel

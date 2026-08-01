@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { env } from "@/lib/env";
 
@@ -26,6 +26,11 @@ export async function write(key: string, data: Buffer): Promise<string> {
 
 export async function read(key: string): Promise<Buffer> {
   return readFile(resolveKey(key));
+}
+
+/** Borra si existe. No falla si ya no está: el objetivo es que no esté. */
+export async function remove(key: string): Promise<void> {
+  await rm(resolveKey(key), { force: true });
 }
 
 export async function exists(key: string): Promise<boolean> {

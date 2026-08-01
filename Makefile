@@ -10,6 +10,7 @@ COMPOSE      := docker compose
 COMPOSE_DEV  := docker compose -f docker-compose.dev.yml
 COMPOSE_RL   := docker compose -f docker-compose.ratelimit.yml
 COMPOSE_E2E  := docker compose -f docker-compose.e2e.yml
+COMPOSE_PROD := docker compose -f docker-compose.yml -f docker-compose.prod.yml
 
 # Al levantar sólo la infraestructura, la app corre en el host y llega a
 # Postgres y Redis por localhost.
@@ -178,6 +179,22 @@ browsers: ## Descarga el navegador que usa Playwright
 up: ## Levanta el stack completo (web, worker, base de datos, cola)
 	$(COMPOSE) up -d --build --wait
 	@echo "La app está en http://localhost:3000"
+
+.PHONY: deploy
+deploy: ## Despliega en el servidor (usa docker-compose.prod.yml)
+	@# Comprueba primero que están las variables que rompen el despliegue en
+	@# silencio: sin ellas el stack arranca y sólo falla al iniciar sesión.
+	@$(COMPOSE_PROD) config >/dev/null
+	$(COMPOSE_PROD) up -d --build --wait
+	@echo "Desplegado. Detrás de Caddy en $${BETTER_AUTH_URL}"
+
+.PHONY: deploy-logs
+deploy-logs: ## Sigue los logs del despliegue de producción
+	$(COMPOSE_PROD) logs -f --tail 100
+
+.PHONY: backup
+backup: ## Copia de seguridad de la base de datos y de los clips
+	./scripts/backup.sh
 
 .PHONY: down
 down: ## Para el stack completo, conservando los datos

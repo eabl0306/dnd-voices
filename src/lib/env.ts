@@ -4,7 +4,32 @@ const schema = z.object({
   DATABASE_URL: z.string().min(1),
   REDIS_URL: z.string().min(1).default("redis://localhost:6379"),
   BETTER_AUTH_SECRET: z.string().min(1),
-  BETTER_AUTH_URL: z.url().default("http://localhost:3000"),
+  /**
+   * URL pública de la app.
+   *
+   * Detrás de un dominio real no puede apuntar a localhost: better-auth compara
+   * el Origin de cada alta y login contra ella y responde 403 si no coincide,
+   * además de emitir la cookie de sesión sin `Secure`. Falla en silencio —la
+   * página carga y sólo revienta al enviar el formulario—, así que se comprueba.
+   *
+   * La condición es PUBLIC_DEPLOY y no NODE_ENV: en producción se construye
+   * también para los e2e, que corren en localhost y son legítimos.
+   */
+  BETTER_AUTH_URL: z
+    .url()
+    .default("http://localhost:3000")
+    .refine(
+      (url) =>
+        process.env.PUBLIC_DEPLOY !== "true" ||
+        !/^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/.test(url),
+      "en un despliegue público tiene que ser la URL real (https://…), no localhost",
+    ),
+
+  /**
+   * Marca que la app está publicada en internet tras un proxy inverso. La pone
+   * el compose de producción; en desarrollo y en los e2e no existe.
+   */
+  PUBLIC_DEPLOY: z.enum(["true", "false"]).default("false"),
   ANTHROPIC_API_KEY: z.string().min(1),
   ELEVENLABS_API_KEY: z.string().min(1),
   STORAGE_DIR: z.string().min(1).default("./storage"),

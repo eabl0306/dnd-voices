@@ -119,6 +119,42 @@ async function synthesizeAll(
   return { clips, cacheHits, charsBilled };
 }
 
+/** Cuántas mezclas anteriores de una escena se conservan además de la nueva. */
+const KEEP_MIXES = 1;
+
+/**
+ * Retira las mezclas viejas de una escena.
+ *
+ * Cada render deja un mp3 completo —una escena de media hora pasa de 50 MB— y
+ * hasta ahora ninguno se borraba nunca. Se conserva la anterior para poder
+ * comparar un cambio con lo que había, y se tiran las de más atrás.
+ *
+ * Los clips por línea no se tocan: son la caché que evita volver a facturar.
+ */
+async function discardOldMixes(sceneId: string, currentRenderId: string): Promise<void> {
+  const stale = await db.render.findMany({
+    where: {
+      sceneId,
+      id: { not: currentRenderId },
+      audioPath: { not: null },
+    },
+    orderBy: { createdAt: "desc" },
+    skip: KEEP_MIXES,
+    select: { id: true, audioPath: true },
+  });
+
+  for (const render of stale) {
+    try {
+      if (render.audioPath) await storage.remove(render.audioPath);
+      await db.render.update({ where: { id: render.id }, data: { audioPath: null } });
+    } catch (error) {
+      // Quedarse sin limpiar es un problema de disco, no del render que acaba
+      // de salir bien: no se propaga.
+      console.warn(`No se pudo retirar la mezcla ${render.id}:`, messageOf(error));
+    }
+  }
+}
+
 /** Sintetiza cada línea de la escena y monta el audio final. */
 export async function renderScene(renderId: string): Promise<RenderSummary> {
   const render = await db.render.findUniqueOrThrow({
@@ -175,6 +211,7 @@ export async function renderScene(renderId: string): Promise<RenderSummary> {
       },
     });
     await db.scene.update({ where: { id: scene.id }, data: { status: "RENDERED" } });
+    await discardOldMixes(scene.id, renderId);
 
     return { audioKey: output.audioKey, cacheHits, charsBilled, total: scene.lines.length };
   } catch (error) {
