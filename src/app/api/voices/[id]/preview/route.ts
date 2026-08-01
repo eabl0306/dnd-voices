@@ -8,6 +8,27 @@ import { OUTPUT_FORMAT, synthesize } from "@/lib/tts/elevenlabs";
 
 type Params = { params: Promise<{ id: string }> };
 
+/**
+ * Traduce el fallo del proveedor a algo accionable.
+ *
+ * El error crudo del SDK son treinta líneas de volcado; en la tarjeta sólo caben
+ * dos, y lo que el usuario necesita saber es qué hacer al respecto.
+ */
+function previewFailure(error: unknown): string {
+  const raw = error instanceof Error ? error.message : String(error);
+  if (/invalid_api_key|Invalid API key|unauthorized/i.test(raw)) {
+    return "El proveedor rechaza la clave: revisa ELEVENLABS_API_KEY en tu .env y reinicia la app.";
+  }
+  if (/voice_not_found|not_found/i.test(raw)) {
+    return "Esa voz ya no existe en tu cuenta del proveedor. Bórrala de la biblioteca o corrige su voice_id.";
+  }
+  if (/quota|credit|subscription/i.test(raw)) {
+    return "El proveedor rechazó la petición por límites de tu plan o de créditos.";
+  }
+  // Sin patrón conocido, la primera línea del error suele traer el motivo.
+  return `No se pudo generar la prueba: ${raw.split("\n")[0]?.slice(0, 160) ?? raw}`;
+}
+
 /** Frase de prueba fija: al ser siempre la misma, se cachea y no se re-factura. */
 const SAMPLE =
   "Bienvenidos a la mesa. Esta es mi voz: escuchadla antes de repartir los papeles.";
@@ -66,7 +87,6 @@ export async function GET(_request: NextRequest, { params }: Params) {
       return NextResponse.json({ error: error.message }, { status: error.status });
     }
     console.error(error);
-    const message = error instanceof Error ? error.message : "No se pudo generar la prueba.";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: previewFailure(error) }, { status: 500 });
   }
 }

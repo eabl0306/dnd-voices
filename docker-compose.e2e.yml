@@ -1,0 +1,86 @@
+name: dndvoices-e2e
+
+# Stack aislado para los e2e.
+#
+# No puede ser el stack normal: levantarlo con claves de marcador dejaba la app
+# del usuario sin poder hablar con los proveedores hasta el siguiente `make up`,
+# y con claves reales cada corrida generaba voces de verdad contra su cuenta.
+#
+#   npm run test:e2e:docker
+
+x-app-env: &app-env
+  DATABASE_URL: postgresql://dndvoices:dndvoices@postgres:5432/dndvoices
+  REDIS_URL: redis://redis:6379
+  BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?define BETTER_AUTH_SECRET en .env}
+  BETTER_AUTH_URL: http://localhost:3002
+  # De marcador a propósito: ningún caso depende de generar audio, y así una
+  # corrida no gasta créditos ni ocupa slots de voz de la cuenta real.
+  ANTHROPIC_API_KEY: e2e-placeholder
+  ELEVENLABS_API_KEY: e2e-placeholder
+  STORAGE_DIR: /app/storage
+  # Los casos crean un usuario cada uno desde la misma IP.
+  AUTH_RATE_LIMIT_MAX: "1000"
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: dndvoices
+      POSTGRES_PASSWORD: dndvoices
+      POSTGRES_DB: dndvoices
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dndvoices"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  migrate:
+    build:
+      context: .
+      target: migrate
+    environment: *app-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  web:
+    build:
+      context: .
+      target: web
+    environment: *app-env
+    ports:
+      - "3002:3000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3000/login').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
+
+  # El worker hace falta: sin él, el casting de voz se queda encolado y las
+  # tarjetas de personaje no salen nunca de «asignando voz…».
+  worker:
+    build:
+      context: .
+      target: worker
+    environment: *app-env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    restart: unless-stopped

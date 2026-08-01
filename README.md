@@ -65,11 +65,16 @@ make verify         # lo anterior más los dos e2e contra Docker
 Por separado: `make test`, `make coverage`, `make e2e`, `make e2e-docker`,
 `make e2e-ratelimit`.
 
-Los e2e crean un usuario propio por caso para poder correr en paralelo, y todos
-salen de la misma IP. Por eso `make e2e-docker` sube `AUTH_RATE_LIMIT_MAX` a
-1000: con el valor real de producción se estrangularían entre ellos. Lanzar
-`playwright test` a mano contra un stack ya arrancado falla por ese motivo, así
-que usa los objetivos del Makefile.
+Los e2e corren contra **su propio stack** (`docker-compose.e2e.yml`, puerto
+3002), no contra el tuyo. Levantarlos sobre el stack normal tenía dos formas de
+salir mal: con claves de marcador dejaba la app sin poder hablar con los
+proveedores hasta el siguiente `make up`, y con claves reales cada corrida
+generaba voces contra la cuenta de verdad y ocupaba slots del plan.
+
+Cada caso crea su propio usuario y todos salen de la misma IP, así que ese stack
+lleva `AUTH_RATE_LIMIT_MAX` alto: con el valor de producción se estrangularían
+entre ellos. Lanzar `playwright test` a mano contra un stack ya arrancado falla
+por ese motivo, así que usa los objetivos del Makefile.
 
 Como consecuencia, esa suite no comprueba que el límite bloquee nada. Eso lo
 cubre `make e2e-ratelimit`, que levanta un segundo stack en el puerto 3001 con

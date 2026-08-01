@@ -9,6 +9,7 @@ SHELL := /bin/bash
 COMPOSE      := docker compose
 COMPOSE_DEV  := docker compose -f docker-compose.dev.yml
 COMPOSE_RL   := docker compose -f docker-compose.ratelimit.yml
+COMPOSE_E2E  := docker compose -f docker-compose.e2e.yml
 
 # Al levantar sólo la infraestructura, la app corre en el host y llega a
 # Postgres y Redis por localhost.
@@ -148,8 +149,13 @@ e2e-ui: db ## E2E en el modo interactivo de Playwright
 	npm run test:e2e:ui
 
 .PHONY: e2e-docker
-e2e-docker: ## E2E contra el stack dockerizado completo
+e2e-docker: ## E2E contra un stack aislado, sin tocar el tuyo
 	npm run test:e2e:docker
+
+.PHONY: e2e-down
+e2e-down: ## Retira los stacks de prueba
+	$(COMPOSE_E2E) down -v
+	$(COMPOSE_RL) down -v
 
 .PHONY: e2e-ratelimit
 e2e-ratelimit: ## Comprueba que el rate limit de auth bloquea de verdad
@@ -180,6 +186,7 @@ down-all: ## Para el stack y borra sus volúmenes (datos y audio incluidos)
 	$(COMPOSE) down -v
 	$(COMPOSE_DEV) down -v
 	$(COMPOSE_RL) down -v
+	$(COMPOSE_E2E) down -v
 
 .PHONY: logs
 logs: ## Sigue los logs de todos los servicios
