@@ -90,6 +90,21 @@ describe("buildFilterGraph", () => {
     expect(Number(internal?.[1])).toBeGreaterThanOrEqual(0.6);
   });
 
+  it("desvanece el final del clip sin llegar a tapar la última consonante", () => {
+    // 25 de 66 clips reales terminan en seco, a nivel de voz: el salto brusco a
+    // silencio suena a frase amputada aunque la palabra esté entera.
+    const [chain = ""] = buildFilterGraph([clip("/a.mp3")]).filterComplex.split(";");
+
+    // El fundido va dentro de la inversión, que es lo que lo convierte en salida.
+    const reversed = chain.slice(chain.indexOf("areverse"), chain.lastIndexOf("areverse"));
+    const fade = /afade=t=in:d=([\d.]+)/.exec(reversed);
+    expect(fade).not.toBeNull();
+
+    // Una `s` final dura 100-150 ms; pasarse de ahí la apagaría.
+    expect(Number(fade?.[1])).toBeGreaterThan(0.02);
+    expect(Number(fade?.[1])).toBeLessThan(0.08);
+  });
+
   it("mide en la primera pasada y aplica ganancia constante en la segunda", () => {
     // En una sola pasada loudnorm es dinámico y entrecorta el material flojo.
     const measuring = buildFilterGraph([clip("/a.mp3")]);

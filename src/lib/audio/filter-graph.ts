@@ -37,8 +37,11 @@ const FORMAT = `aformat=sample_fmts=fltp:sample_rates=${SAMPLE_RATE}:channel_lay
  */
 const FLOOR = "-45dB";
 
-/** Arranque mudo del clip. Se deja un respiro mínimo para no cortar en seco. */
-const TRIM_HEAD = `silenceremove=start_periods=1:start_silence=0.05:start_threshold=${FLOOR}`;
+/**
+ * Arranque mudo del clip. Se deja un respiro mínimo para no entrar de golpe, y
+ * un fundido de 10 ms porque recortar deja la primera muestra a media onda.
+ */
+const TRIM_HEAD = `silenceremove=start_periods=1:start_silence=0.05:start_threshold=${FLOOR},afade=t=in:d=0.01`;
 
 /**
  * Techo de los huecos *dentro* de una intervención.
@@ -53,14 +56,34 @@ const TRIM_HEAD = `silenceremove=start_periods=1:start_silence=0.05:start_thresh
 const CAP_INTERNAL = `silenceremove=stop_periods=-1:stop_duration=0.70:stop_threshold=${FLOOR}`;
 
 /**
+ * Desvanecido al final de cada clip.
+ *
+ * Medido sobre una escena real: 25 de 66 clips terminan en seco, con los últimos
+ * 30 ms todavía a nivel de voz —hasta −18 dB—. El proveedor corta justo en el
+ * último fonema y no deja que decaiga. Las palabras están completas (verificado
+ * transcribiendo), pero el salto brusco a silencio suena a frase amputada.
+ *
+ * 40 ms es un compromiso: basta para que la muestra final sea cero y desaparezca
+ * el chasquido, y es bastante menos que los 100-150 ms que dura una `s` final,
+ * así que no se atenúa la consonante que precisamente se quiere oír.
+ */
+const FADE_OUT_S = 0.04;
+
+/**
  * Cola del clip, donde el proveedor deja hasta 1,4 s de nada.
  *
  * Va del revés porque `stop_periods=1` no recorta el final: corta en el primer
  * silencio interno y tira todo lo que venga después. Invirtiendo, la cola pasa a
- * ser la cabeza y `start_periods` sí la trata bien. Se dejan 0,08 s para que la
- * voz termine de decaer en vez de chocar contra el cero absoluto de la pausa.
+ * ser la cabeza y `start_periods` sí la trata bien. El desvanecido se cuela en
+ * la misma inversión: `afade=t=in` sobre el audio invertido es un fundido de
+ * salida sin tener que saber cuánto dura el clip.
  */
-const TRIM_TAIL = `areverse,silenceremove=start_periods=1:start_silence=0.08:start_threshold=${FLOOR},areverse`;
+const TRIM_TAIL = [
+  "areverse",
+  `silenceremove=start_periods=1:start_silence=0.08:start_threshold=${FLOOR}`,
+  `afade=t=in:d=${FADE_OUT_S}`,
+  "areverse",
+].join(",");
 
 /** Limpieza completa de un clip: bordes fuera, pausas internas respetadas. */
 const TRIM_SILENCE = [TRIM_HEAD, CAP_INTERNAL, TRIM_TAIL].join(",");
