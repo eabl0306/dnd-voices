@@ -160,3 +160,12 @@ describe("instrucciones de casting", () => {
     expect(POOL_INSTRUCTIONS).toContain("catálogo");
   });
 });
+
+describe("criterio de inteligibilidad", () => {
+  it("pide voces que articulen, no sólo que encajen", () => {
+    // Una voz generada salió tan aireada que hasta la transcripción automática
+    // se comía palabras; el resto de voces de la misma campaña, no.
+    expect(DESIGN_INSTRUCTIONS).toContain("articule con claridad");
+    expect(POOL_INSTRUCTIONS).toContain("articule con claridad");
+  });
+});

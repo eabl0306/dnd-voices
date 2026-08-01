@@ -125,6 +125,17 @@ export async function saveDesignedVoice(args: {
   return voice.voiceId;
 }
 
+/**
+ * Borra una voz de la cuenta del proveedor.
+ *
+ * Rediseñar la voz de un personaje crea una nueva y deja la anterior ocupando
+ * un slot del plan, que está limitado. Sin esto, cada «Cambiar voz» sobre una
+ * voz generada cuesta un slot para siempre.
+ */
+export async function deleteVoice(externalId: string): Promise<void> {
+  await eleven.voices.delete(externalId);
+}
+
 export type SynthesizeArgs = {
   voiceId: string;
   /** Modelo de esta voz en concreto, no una constante global. */

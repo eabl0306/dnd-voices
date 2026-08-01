@@ -51,7 +51,9 @@ describe("AttributionSchema", () => {
 describe("DesignBriefSchema", () => {
   const brief = {
     voiceDescription: "gravelly middle-aged male, scottish accent",
-    previewText: "Ya basta de esperar.",
+    // Voice Design rechaza por debajo de 100 caracteres.
+    previewText:
+      "Ya basta de esperar. Llevamos media vida cumpliendo órdenes de quien nunca ha pisado estos muelles, y hoy se acaba.",
     settings: SETTINGS,
     rationale: "porque sí",
   };
@@ -74,5 +76,23 @@ describe("PoolPickSchema", () => {
   it("rechaza un voiceId vacío", () => {
     const bad = { voiceId: "", settings: SETTINGS, rationale: "" };
     expect(PoolPickSchema.safeParse(bad).success).toBe(false);
+  });
+});
+
+describe("DesignBriefSchema · longitud del texto de prueba", () => {
+  const brief = {
+    voiceDescription: "gravelly middle-aged male, scottish accent",
+    previewText: "x".repeat(100),
+    settings: SETTINGS,
+    rationale: "porque sí",
+  };
+
+  it("exige los 100 caracteres que pide Voice Design", () => {
+    // Por debajo, el proveedor responde 422 string_too_short y el casting falla
+    // después de haber gastado la llamada a Claude.
+    expect(DesignBriefSchema.safeParse({ ...brief, previewText: "x".repeat(99) }).success).toBe(
+      false,
+    );
+    expect(DesignBriefSchema.safeParse(brief).success).toBe(true);
   });
 });

@@ -27,8 +27,12 @@ export const AttributionSchema = z.object({
 export const DesignBriefSchema = z.object({
   /** Prompt en inglés para Voice Design: el modelo de ElevenLabs responde mejor. */
   voiceDescription: z.string().min(1),
-  /** Frase de muestra en el idioma de la campaña para escuchar las previews. */
-  previewText: z.string().min(1),
+  /**
+   * Frase de muestra en el idioma de la campaña para escuchar las previews.
+   * El proveedor rechaza con un 422 cualquier texto por debajo de 100
+   * caracteres, así que se valida aquí y el modelo lo reintenta.
+   */
+  previewText: z.string().min(100),
   settings: VoiceSettingsSchema,
   rationale: z.string(),
 });

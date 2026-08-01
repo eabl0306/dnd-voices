@@ -9,11 +9,15 @@ Sobre los ajustes:
 - style por encima de 0.5 sólo cuando el personaje pide una interpretación marcada; cuesta latencia y desestabiliza.
 - speed se aparta de 1.0 sólo si el ritmo es un rasgo del personaje.
 
-El narrador es el pegamento de la escena: prioriza claridad e inteligibilidad sobre carácter, y estabilidad alta para que no cambie de tono entre intervenciones.`;
+El narrador es el pegamento de la escena: prioriza claridad e inteligibilidad sobre carácter, y estabilidad alta para que no cambie de tono entre intervenciones.
+
+Y una regla que vale para todos, no sólo para el narrador: la voz tiene que entenderse. Un timbre muy aireado, muy apretado o muy susurrante se come sílabas y arruina la escena por mucho que encaje con el personaje. La tensión, el cansancio o la rabia se interpretan al decir cada frase; no se piden metidas en el instrumento. Describe una voz que articule con claridad y deja el matiz para la interpretación.`;
 
 export const DESIGN_INSTRUCTIONS = `${CASTING_SHARED}
 
-Devuelve un brief para generar una voz nueva desde cero. "voiceDescription" va en inglés y describe sólo el instrumento vocal. "previewText" es una frase que ese personaje diría, en el idioma de la campaña, de 15 a 25 palabras.`;
+Devuelve un brief para generar una voz nueva desde cero. "voiceDescription" va en inglés y describe sólo el instrumento vocal.
+
+"previewText" es lo que ese personaje diría, en el idioma de la campaña, y tiene que pasar de 100 caracteres: el proveedor rechaza cualquier cosa más corta. Escribe dos o tres frases suyas, no una sola, y que suenen a él.`;
 
 export const POOL_INSTRUCTIONS = `${CASTING_SHARED}
 

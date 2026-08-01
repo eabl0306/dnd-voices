@@ -3,7 +3,12 @@ import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { listAssignableVoices } from "@/lib/queries/voices";
 import { messageOf } from "@/lib/render/parse";
-import { DEFAULT_TTS_MODEL, designVoicePreviews, saveDesignedVoice } from "@/lib/tts/elevenlabs";
+import {
+  DEFAULT_TTS_MODEL,
+  deleteVoice,
+  designVoicePreviews,
+  saveDesignedVoice,
+} from "@/lib/tts/elevenlabs";
 import type { VoiceSettings } from "@/lib/types";
 
 type Assignment = {
@@ -124,6 +129,34 @@ async function assignChosenVoice(voiceRefId: string | null, userId: string): Pro
   };
 }
 
+/**
+ * Retira la voz generada que acaba de quedarse sin dueño.
+ *
+ * Rediseñar crea una voz nueva; la anterior seguiría ocupando un slot del plan,
+ * que está limitado. Sólo se borran las generadas: una voz de la biblioteca la
+ * dio de alta el usuario y puede querer reutilizarla.
+ */
+async function discardOrphanVoice(
+  previousId: string | null,
+  currentId: string,
+): Promise<void> {
+  if (!previousId || previousId === currentId) return;
+
+  const previous = await db.voice.findUnique({
+    where: { id: previousId },
+    include: { _count: { select: { characters: true } } },
+  });
+  if (!previous?.generated || previous._count.characters > 0) return;
+
+  try {
+    await deleteVoice(previous.externalId);
+    await db.voice.delete({ where: { id: previous.id } });
+  } catch (error) {
+    // Que no se pueda limpiar no invalida el casting que sí funcionó.
+    console.warn(`No se pudo retirar la voz huérfana ${previous.name}:`, messageOf(error));
+  }
+}
+
 /** Asigna voz a un personaje según su estrategia. */
 export async function provisionVoice(characterId: string): Promise<void> {
   const character = await db.character.findUniqueOrThrow({
@@ -167,6 +200,8 @@ export async function provisionVoice(characterId: string): Promise<void> {
         voiceStatus: "READY",
       },
     });
+
+    await discardOrphanVoice(character.voiceRefId, assignment.voiceRefId);
   } catch (error) {
     await db.character.update({
       where: { id: characterId },
