@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useState } from "react";
+import { MembersPanel } from "@/components/campaign/members-panel";
 import { CampaignModal } from "@/components/modals/campaign-modal";
 import { ViewBody, ViewHeader } from "@/components/shell/view-header";
 import { Button, ErrorNote, GlyphBox, MonoLabel, Panel } from "@/components/ui";
@@ -157,6 +158,8 @@ export default function CampaignOverviewPage() {
                   </div>
                 )}
               </Panel>
+
+              <MembersPanel campaignId={data.id} isOwner={data.isOwner} />
             </div>
           </>
         )}

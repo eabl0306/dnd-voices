@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import { z } from "zod";
-import { handler, ownedScene, requireUser } from "@/lib/api";
+import { handler, accessibleScene, requireUser } from "@/lib/api";
 import { db } from "@/lib/db";
 import type { SceneDetail } from "@/lib/dto";
 import { isAudioStale } from "@/lib/render/line-clip";
@@ -17,7 +17,7 @@ export function GET(_request: NextRequest, { params }: Params) {
   return handler(async (): Promise<SceneDetail> => {
     const user = await requireUser();
     const { id } = await params;
-    await ownedScene(id, user.id);
+    await accessibleScene(id, user.id);
 
     const scene = await db.scene.findUniqueOrThrow({
       where: { id },
@@ -80,7 +80,7 @@ export function PATCH(request: NextRequest, { params }: Params) {
   return handler(async () => {
     const user = await requireUser();
     const { id } = await params;
-    await ownedScene(id, user.id);
+    await accessibleScene(id, user.id);
     const body = UpdateScene.parse(await request.json());
 
     // Cambiar el texto crudo deja obsoletas las líneas ya atribuidas: vuelve a
@@ -94,7 +94,7 @@ export function DELETE(_request: NextRequest, { params }: Params) {
   return handler(async () => {
     const user = await requireUser();
     const { id } = await params;
-    await ownedScene(id, user.id);
+    await accessibleScene(id, user.id);
     await db.scene.delete({ where: { id } });
     return { deleted: true };
   });

@@ -1,5 +1,5 @@
 import type { NextRequest } from "next/server";
-import { handler, ownedCampaign, requireUser } from "@/lib/api";
+import { handler, accessibleCampaign, requireUser } from "@/lib/api";
 import { db } from "@/lib/db";
 import type { AttentionItem, CampaignOverview } from "@/lib/dto";
 import { countPendingReview } from "@/lib/queries/scene-meta";
@@ -11,7 +11,7 @@ export function GET(_request: NextRequest, { params }: Params) {
   return handler(async (): Promise<CampaignOverview> => {
     const user = await requireUser();
     const { id } = await params;
-    const campaign = await ownedCampaign(id, user.id);
+    const campaign = await accessibleCampaign(id, user.id);
 
     const [characters, scenes, renders] = await Promise.all([
       db.character.findMany({
@@ -94,6 +94,7 @@ export function GET(_request: NextRequest, { params }: Params) {
       cacheHitRatio: renderedLines === 0 ? 0 : Math.round((cacheHits / renderedLines) * 100),
       lastRenderAt: renders[0]?.createdAt.toISOString() ?? null,
       attention,
+      isOwner: campaign.userId === user.id,
     };
   });
 }

@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import { z } from "zod";
-import { handler, ownedCampaign, requireUser } from "@/lib/api";
+import { handler, accessibleCampaign, requireUser } from "@/lib/api";
 import { db } from "@/lib/db";
 import { toVoiceDto, VOICE_SELECT } from "@/lib/queries/voices";
 
@@ -33,7 +33,7 @@ export function POST(request: NextRequest) {
 
     // Sin esta comprobación, un campaignId ajeno colaría una voz en la
     // biblioteca de otro usuario.
-    if (body.campaignId) await ownedCampaign(body.campaignId, user.id);
+    if (body.campaignId) await accessibleCampaign(body.campaignId, user.id);
 
     const voice = await db.voice.create({
       data: { ...body, userId: user.id },

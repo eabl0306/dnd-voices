@@ -23,6 +23,7 @@ model User {
   sessions      Session[]
   accounts      Account[]
   campaigns     Campaign[]
+  memberships   CampaignMember[]
   voices        Voice[]
 
   @@map("user")
@@ -76,8 +77,38 @@ model Verification {
 // Domain
 // ---------------------------------------------------------------------------
 
+enum CampaignRole {
+  /// Creó la campaña: manda en la mesa y puede borrarla.
+  OWNER
+  /// Juega en la mesa: trabaja el contenido, no toca la mesa ni la campaña.
+  MEMBER
+}
+
+/**
+ * Quién puede entrar en una campaña.
+ *
+ * El dueño tiene también su fila con rol OWNER, y no sólo `Campaign.userId`:
+ * así toda comprobación de acceso es la misma consulta —¿hay fila para este
+ * usuario?— en vez de un OR que es fácil olvidar en una ruta nueva.
+ */
+model CampaignMember {
+  id         String       @id @default(cuid())
+  campaignId String
+  userId     String
+  role       CampaignRole @default(MEMBER)
+  createdAt  DateTime     @default(now())
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, userId])
+  @@index([userId])
+}
+
 model Campaign {
   id          String      @id @default(cuid())
+  /// Dueño de la campaña. Se conserva además de su fila en CampaignMember
+  /// porque es la respuesta a «quién manda», que no admite empates.
   userId      String
   name        String
   /// Ambientación y tono: alimenta la atribución de hablantes y el casting de voces.
@@ -88,6 +119,7 @@ model Campaign {
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
   user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  members     CampaignMember[]
   characters  Character[]
   scenes      Scene[]
   voices      Voice[]

@@ -1,5 +1,5 @@
 import type { NextRequest } from "next/server";
-import { handler, ownedCharacter, requireUser } from "@/lib/api";
+import { handler, accessibleCharacter, requireUser } from "@/lib/api";
 import { db } from "@/lib/db";
 import { voiceQueue } from "@/lib/queue";
 
@@ -10,7 +10,7 @@ export function POST(_request: NextRequest, { params }: Params) {
   return handler(async () => {
     const user = await requireUser();
     const { id } = await params;
-    await ownedCharacter(id, user.id);
+    await accessibleCharacter(id, user.id);
 
     await db.character.update({
       where: { id },

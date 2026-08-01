@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { HttpError, ownedRender, requireUser } from "@/lib/api";
+import { HttpError, accessibleRender, requireUser } from "@/lib/api";
 import { audioFileResponse } from "@/lib/api-audio";
 
 type Params = { params: Promise<{ id: string }> };
@@ -13,7 +13,7 @@ export async function GET(request: NextRequest, { params }: Params) {
   try {
     const user = await requireUser();
     const { id } = await params;
-    const render = await ownedRender(id, user.id);
+    const render = await accessibleRender(id, user.id);
 
     if (!render.audioPath) {
       throw new HttpError(409, "Este render todavía no ha producido audio.");

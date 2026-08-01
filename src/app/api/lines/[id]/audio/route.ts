@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { HttpError, handler, ownedLine, requireUser } from "@/lib/api";
+import { HttpError, handler, accessibleLine, requireUser } from "@/lib/api";
 import { audioFileResponse } from "@/lib/api-audio";
 import { db } from "@/lib/db";
 import { durationMs } from "@/lib/audio/ffmpeg";
@@ -27,7 +27,7 @@ export async function GET(request: NextRequest, { params }: Params) {
   try {
     const user = await requireUser();
     const { id } = await params;
-    await ownedLine(id, user.id);
+    await accessibleLine(id, user.id);
 
     const line = await db.line.findUniqueOrThrow({
       where: { id },
@@ -67,7 +67,7 @@ export function POST(_request: NextRequest, { params }: Params) {
   return handler(async () => {
     const user = await requireUser();
     const { id } = await params;
-    await ownedLine(id, user.id);
+    await accessibleLine(id, user.id);
 
     const line = await db.line.findUniqueOrThrow({
       where: { id },

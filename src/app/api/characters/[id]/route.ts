@@ -1,8 +1,9 @@
 import type { NextRequest } from "next/server";
 import { z } from "zod";
-import { handler, HttpError, ownedCharacter, requireUser } from "@/lib/api";
+import { handler, HttpError, accessibleCharacter, requireUser } from "@/lib/api";
 import { db } from "@/lib/db";
 import { CHARACTER_SELECT, toCharacterDto } from "@/lib/queries/characters";
+import { assignableVoiceFilter } from "@/lib/queries/voices";
 import { voiceQueue } from "@/lib/queue";
 import { compact } from "@/lib/types";
 import { clampVoiceSettings } from "@/lib/voice-settings";
@@ -28,7 +29,7 @@ export function PATCH(request: NextRequest, { params }: Params) {
   return handler(async () => {
     const user = await requireUser();
     const { id } = await params;
-    const current = await ownedCharacter(id, user.id);
+    const current = await accessibleCharacter(id, user.id);
 
     const { provisionVoice, ...data } = UpdateCharacter.parse(await request.json());
     const strategy = data.voiceStrategy ?? current.voiceStrategy;
@@ -38,8 +39,15 @@ export function PATCH(request: NextRequest, { params }: Params) {
       throw new HttpError(400, "Elige una voz de la biblioteca para este personaje.");
     }
     if (data.voiceRefId) {
-      const owned = await db.voice.count({ where: { id: data.voiceRefId, userId: user.id } });
-      if (owned === 0) throw new HttpError(400, "Esa voz no está en tu biblioteca.");
+      const reachable = await db.voice.count({
+        where: {
+          id: data.voiceRefId,
+          ...assignableVoiceFilter(user.id, current.campaignId),
+        },
+      });
+      if (reachable === 0) {
+        throw new HttpError(400, "Esa voz no está en tu biblioteca ni en la de la campaña.");
+      }
     }
 
     // Recastear sobrescribe los ajustes con los que elija la IA, así que un
@@ -75,7 +83,7 @@ export function DELETE(_request: NextRequest, { params }: Params) {
   return handler(async () => {
     const user = await requireUser();
     const { id } = await params;
-    await ownedCharacter(id, user.id);
+    await accessibleCharacter(id, user.id);
     // Las líneas que tenía atribuidas quedan sin personaje y la interfaz las
     // marca para revisión, en vez de desaparecer con él.
     await db.character.delete({ where: { id } });

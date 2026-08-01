@@ -14,7 +14,9 @@ export function GET() {
   return handler(async (): Promise<CampaignSummary[]> => {
     const user = await requireUser();
     const campaigns = await db.campaign.findMany({
-      where: { userId: user.id },
+      // Las propias y aquellas a las que le han invitado: el dueño también
+      // tiene su fila de miembro, así que una sola condición cubre las dos.
+      where: { members: { some: { userId: user.id } } },
       orderBy: { updatedAt: "desc" },
       select: { id: true, name: true, _count: { select: { characters: true, scenes: true } } },
     });
@@ -37,6 +39,15 @@ export function POST(request: NextRequest) {
     // encolar su casting desde aquí, y al no hacerlo se quedaba en «asignando
     // voz…» para siempre. El reparto lo da de alta el DM, que además así elige
     // la estrategia de voz en vez de heredar una.
-    return db.campaign.create({ data: { ...body, userId: user.id } });
+    //
+    // El dueño entra en la mesa en la misma escritura: sin su fila de miembro
+    // perdería el acceso a la campaña que acaba de crear.
+    return db.campaign.create({
+      data: {
+        ...body,
+        userId: user.id,
+        members: { create: { userId: user.id, role: "OWNER" } },
+      },
+    });
   });
 }

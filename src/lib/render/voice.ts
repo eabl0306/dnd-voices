@@ -1,7 +1,7 @@
 import { buildDesignBrief, type CastArgs, pickFromPool } from "@/lib/ai/casting";
 import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
-import { listAssignableVoices } from "@/lib/queries/voices";
+import { campaignVoiceFilter, listAssignableVoices } from "@/lib/queries/voices";
 import { messageOf } from "@/lib/render/parse";
 import { deleteVoice, designVoicePreviews, saveDesignedVoice } from "@/lib/tts/elevenlabs";
 import { DEFAULT_TTS_MODEL } from "@/lib/tts/model";
@@ -113,14 +113,16 @@ async function castFromPool(context: Context): Promise<Assignment> {
 /** El DM ya eligió la voz: sólo hay que fijarla, sin llamar a ningún modelo. */
 async function assignChosenVoice(
   voiceRefId: string | null,
-  userId: string,
+  campaignId: string,
   isNarrator: boolean,
 ): Promise<Assignment> {
   if (!voiceRefId) {
     throw new Error("No se ha elegido ninguna voz de la biblioteca para este personaje.");
   }
-  const voice = await db.voice.findFirst({ where: { id: voiceRefId, userId } });
-  if (!voice) throw new Error("La voz elegida ya no está en tu biblioteca.");
+  const voice = await db.voice.findFirst({
+    where: { id: voiceRefId, ...campaignVoiceFilter(campaignId) },
+  });
+  if (!voice) throw new Error("La voz elegida ya no está disponible en esta campaña.");
 
   return {
     voiceId: voice.externalId,
@@ -192,7 +194,11 @@ export async function provisionVoice(
       character.voiceStrategy === "DESIGNED"
         ? await designVoice(context)
         : character.voiceStrategy === "LIBRARY"
-          ? await assignChosenVoice(character.voiceRefId, context.userId, character.isNarrator)
+          ? await assignChosenVoice(
+              character.voiceRefId,
+              character.campaignId,
+              character.isNarrator,
+            )
           : await castFromPool(context);
 
     await db.character.update({

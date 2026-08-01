@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import { z } from "zod";
-import { handler, HttpError, ownedCampaign, requireUser } from "@/lib/api";
+import { handler, HttpError, accessibleCampaign, requireUser } from "@/lib/api";
 import { db } from "@/lib/db";
 import { toVoiceDto, VOICE_SELECT } from "@/lib/queries/voices";
 import { compact } from "@/lib/types";
@@ -29,7 +29,7 @@ export function PATCH(request: NextRequest, { params }: Params) {
     await ownedVoice(id, user.id);
 
     const body = UpdateVoice.parse(await request.json());
-    if (body.campaignId) await ownedCampaign(body.campaignId, user.id);
+    if (body.campaignId) await accessibleCampaign(body.campaignId, user.id);
 
     const voice = await db.voice.update({
       where: { id },

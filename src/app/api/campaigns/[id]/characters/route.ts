@@ -1,8 +1,9 @@
 import type { NextRequest } from "next/server";
 import { z } from "zod";
-import { handler, HttpError, ownedCampaign, requireUser } from "@/lib/api";
+import { handler, HttpError, accessibleCampaign, requireUser } from "@/lib/api";
 import { db } from "@/lib/db";
 import { CHARACTER_SELECT, listCharacters, toCharacterDto } from "@/lib/queries/characters";
+import { assignableVoiceFilter } from "@/lib/queries/voices";
 import { voiceQueue } from "@/lib/queue";
 
 type Params = { params: Promise<{ id: string }> };
@@ -23,7 +24,7 @@ export function GET(_request: NextRequest, { params }: Params) {
   return handler(async () => {
     const user = await requireUser();
     const { id } = await params;
-    await ownedCampaign(id, user.id);
+    await accessibleCampaign(id, user.id);
     return listCharacters(id);
   });
 }
@@ -32,7 +33,7 @@ export function POST(request: NextRequest, { params }: Params) {
   return handler(async () => {
     const user = await requireUser();
     const { id } = await params;
-    await ownedCampaign(id, user.id);
+    await accessibleCampaign(id, user.id);
 
     const { provisionVoice, ...data } = CreateCharacter.parse(await request.json());
 
@@ -40,8 +41,12 @@ export function POST(request: NextRequest, { params }: Params) {
       throw new HttpError(400, "Elige una voz de la biblioteca para este personaje.");
     }
     if (data.voiceRefId) {
-      const voice = await db.voice.count({ where: { id: data.voiceRefId, userId: user.id } });
-      if (voice === 0) throw new HttpError(400, "Esa voz no está en tu biblioteca.");
+      const voice = await db.voice.count({
+        where: { id: data.voiceRefId, ...assignableVoiceFilter(user.id, id) },
+      });
+      if (voice === 0) {
+        throw new HttpError(400, "Esa voz no está en tu biblioteca ni en la de la campaña.");
+      }
     }
 
     const character = await db.character.create({

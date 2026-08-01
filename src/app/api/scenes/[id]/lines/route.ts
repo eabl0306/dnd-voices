@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import { z } from "zod";
-import { HttpError, handler, ownedScene, requireUser } from "@/lib/api";
+import { HttpError, handler, accessibleScene, requireUser } from "@/lib/api";
 import { db } from "@/lib/db";
 import { compact } from "@/lib/types";
 
@@ -35,7 +35,7 @@ export function PATCH(request: NextRequest, { params }: Params) {
   return handler(async () => {
     const user = await requireUser();
     const { id } = await params;
-    const scene = await ownedScene(id, user.id);
+    const scene = await accessibleScene(id, user.id);
     const { lines } = PatchLines.parse(await request.json());
 
     const owned = await db.line.findMany({

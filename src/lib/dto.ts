@@ -26,6 +26,15 @@ export type NavData = {
   } | null;
 };
 
+export type MemberDto = {
+  userId: string;
+  name: string;
+  email: string;
+  /** Manda en la mesa: puede invitar, echar y borrar la campaña. */
+  isOwner: boolean;
+  joinedAt: string;
+};
+
 export type CampaignOverview = {
   id: string;
   name: string;
@@ -41,6 +50,8 @@ export type CampaignOverview = {
   cacheHitRatio: number;
   lastRenderAt: string | null;
   attention: AttentionItem[];
+  /** Si quien mira es el dueño: decide si puede gestionar la mesa. */
+  isOwner: boolean;
 };
 
 export type AttentionItem = {

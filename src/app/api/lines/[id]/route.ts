@@ -1,5 +1,5 @@
 import type { NextRequest } from "next/server";
-import { HttpError, handler, ownedLine, requireUser } from "@/lib/api";
+import { HttpError, handler, accessibleLine, requireUser } from "@/lib/api";
 import { db } from "@/lib/db";
 
 type Params = { params: Promise<{ id: string }> };
@@ -8,7 +8,7 @@ export function DELETE(_request: NextRequest, { params }: Params) {
   return handler(async () => {
     const user = await requireUser();
     const { id } = await params;
-    const line = await ownedLine(id, user.id);
+    const line = await accessibleLine(id, user.id);
 
     // El worker recorre un snapshot de las líneas tomado al arrancar: borrar
     // una a mitad de render facturaría su TTS para nada y el audio final ya no

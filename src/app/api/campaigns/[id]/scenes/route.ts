@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import { z } from "zod";
-import { handler, ownedCampaign, requireUser } from "@/lib/api";
+import { handler, accessibleCampaign, requireUser } from "@/lib/api";
 import { db } from "@/lib/db";
 import type { SceneSummary } from "@/lib/dto";
 import { countPendingReview, excerptOf } from "@/lib/queries/scene-meta";
@@ -16,7 +16,7 @@ export function GET(_request: NextRequest, { params }: Params) {
   return handler(async (): Promise<SceneSummary[]> => {
     const user = await requireUser();
     const { id } = await params;
-    await ownedCampaign(id, user.id);
+    await accessibleCampaign(id, user.id);
 
     const scenes = await db.scene.findMany({
       where: { campaignId: id },
@@ -47,7 +47,7 @@ export function POST(request: NextRequest, { params }: Params) {
   return handler(async () => {
     const user = await requireUser();
     const { id } = await params;
-    await ownedCampaign(id, user.id);
+    await accessibleCampaign(id, user.id);
     const body = CreateScene.parse(await request.json());
     return db.scene.create({ data: { ...body, campaignId: id } });
   });

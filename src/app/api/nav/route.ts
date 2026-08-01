@@ -21,7 +21,7 @@ export function GET(request: NextRequest) {
       (sceneId
         ? ((
             await db.scene.findFirst({
-              where: { id: sceneId, campaign: { userId: user.id } },
+              where: { id: sceneId, campaign: { members: { some: { userId: user.id } } } },
               select: { campaignId: true },
             })
           )?.campaignId ?? null)
@@ -29,7 +29,7 @@ export function GET(request: NextRequest) {
 
     const [campaigns, voiceCount] = await Promise.all([
       db.campaign.findMany({
-        where: { userId: user.id },
+        where: { members: { some: { userId: user.id } } },
         orderBy: { updatedAt: "desc" },
         select: {
           id: true,

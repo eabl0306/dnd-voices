@@ -1,5 +1,5 @@
 import type { NextRequest } from "next/server";
-import { HttpError, handler, ownedScene, requireUser } from "@/lib/api";
+import { HttpError, handler, accessibleScene, requireUser } from "@/lib/api";
 import { db } from "@/lib/db";
 import { renderQueue } from "@/lib/queue";
 
@@ -9,7 +9,7 @@ export function POST(_request: NextRequest, { params }: Params) {
   return handler(async () => {
     const user = await requireUser();
     const { id } = await params;
-    await ownedScene(id, user.id);
+    await accessibleScene(id, user.id);
 
     const lineCount = await db.line.count({ where: { sceneId: id } });
     if (lineCount === 0) {
