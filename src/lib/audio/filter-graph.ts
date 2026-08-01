@@ -7,6 +7,15 @@ export type Segment = {
   pauseAfterMs: number;
 };
 
+/** Valores que devuelve la pasada de medición de loudnorm. */
+export type LoudnessMeasurement = {
+  inputI: string;
+  inputTp: string;
+  inputLra: string;
+  inputThresh: string;
+  targetOffset: string;
+};
+
 export type FilterGraph = {
   /** Argumentos `-i` en el orden en que ffmpeg los numera. */
   inputs: string[];
@@ -16,8 +25,42 @@ export type FilterGraph = {
   outputLabel: string;
 };
 
-const format = (index: number) =>
-  `[${index}:a]aformat=sample_fmts=fltp:sample_rates=${SAMPLE_RATE}:channel_layouts=mono[a${index}]`;
+const FORMAT = `aformat=sample_fmts=fltp:sample_rates=${SAMPLE_RATE}:channel_layouts=mono`;
+
+/**
+ * Colapsa los silencios largos que deja el proveedor al final de cada clip.
+ *
+ * Medido sobre un clip real: 0,7 s de voz seguidos de 1,4 s a −70 dB y un
+ * chasquido final a −46 dB. Ese chasquido impide recortar sólo por la cola, así
+ * que se recortan los silencios estén donde estén, dejando 0,35 s —una pausa
+ * natural— para no comerse el aire entre frases de una misma intervención.
+ */
+const TRIM_SILENCE =
+  "silenceremove=stop_periods=-1:stop_duration=0.35:stop_threshold=-60dB";
+
+const TARGET = "I=-16:TP=-1.5:LRA=11";
+
+/**
+ * loudnorm en dos pasadas.
+ *
+ * En una sola pasada es un normalizador *dinámico*: sobre material flojo, como
+ * una intervención susurrada, sube y baja la ganancia cada pocos milisegundos y
+ * el resultado se oye entrecortado. Con los valores ya medidos y `linear=true`
+ * aplica una única ganancia constante, que además respeta el contraste entre un
+ * susurro y un grito.
+ */
+function loudnorm(measurement: LoudnessMeasurement | undefined): string {
+  if (!measurement) return `loudnorm=${TARGET}:print_format=json`;
+  return [
+    `loudnorm=${TARGET}`,
+    `measured_I=${measurement.inputI}`,
+    `measured_TP=${measurement.inputTp}`,
+    `measured_LRA=${measurement.inputLra}`,
+    `measured_thresh=${measurement.inputThresh}`,
+    `offset=${measurement.targetOffset}`,
+    "linear=true",
+  ].join(":");
+}
 
 const silence = (ms: number) => [
   "-f",
@@ -35,11 +78,13 @@ const silence = (ms: number) => [
  * Es una función pura para poder verificar el grafo sin invocar a ffmpeg: un
  * error de índice aquí produce audio silencioso o desordenado, no un fallo.
  *
- * La normalización va al final y no clip a clip a propósito: cada voz llega a
- * un volumen distinto de ElevenLabs, y normalizar por separado aplanaría justo
- * el contraste entre un susurro y un grito que hace que la escena funcione.
+ * Sin `measurement` devuelve el grafo de la pasada de medición; con él, el de
+ * la pasada que escribe el audio definitivo.
  */
-export function buildFilterGraph(segments: readonly Segment[]): FilterGraph {
+export function buildFilterGraph(
+  segments: readonly Segment[],
+  measurement?: LoudnessMeasurement,
+): FilterGraph {
   if (segments.length === 0) {
     throw new Error("No hay clips que montar: la escena está vacía.");
   }
@@ -49,32 +94,64 @@ export function buildFilterGraph(segments: readonly Segment[]): FilterGraph {
   const labels: string[] = [];
   let index = 0;
 
-  const push = (args: string[]) => {
+  const push = (args: string[], chain: string) => {
     inputs.push(...args);
-    filters.push(format(index));
+    filters.push(`[${index}:a]${chain}[a${index}]`);
     labels.push(`[a${index}]`);
     index++;
   };
 
   for (const segment of segments) {
-    push(["-i", segment.path]);
-    if (segment.pauseAfterMs > 0) push(silence(segment.pauseAfterMs));
+    push(["-i", segment.path], `${FORMAT},${TRIM_SILENCE}`);
+    // El silencio generado no se recorta: es justo la pausa que queremos.
+    if (segment.pauseAfterMs > 0) push(silence(segment.pauseAfterMs), FORMAT);
   }
 
   return {
     inputs,
-    // loudnorm a -16 LUFS: el estándar de podcast, cómodo con auriculares en mesa.
-    //
     // El aresample final no sobra: loudnorm trabaja internamente a 192 kHz y
     // arrastra su salida, con lo que libmp3lame acababa remuestreando a 48 kHz.
-    // Volver a 44,1 evita un remuestreo de ratio no entero sobre la fuente.
     filterComplex: [
       ...filters,
       `${labels.join("")}concat=n=${labels.length}:v=0:a=1[joined]`,
-      `[joined]loudnorm=I=-16:TP=-1.5:LRA=11,aresample=${SAMPLE_RATE}[out]`,
+      // El aformat final fija el layout de la salida: sin él, la pasada de
+      // medición no negocia con el muxer null y ffmpeg aborta.
+      `[joined]${loudnorm(measurement)},aresample=${SAMPLE_RATE},${FORMAT}[out]`,
     ].join(";"),
     outputLabel: "[out]",
   };
+}
+
+/**
+ * Extrae la medición del JSON que loudnorm imprime en stderr.
+ *
+ * Devuelve undefined si no aparece: la mezcla se hará con una sola pasada, peor
+ * pero funcional, en vez de romper el render entero.
+ */
+export function parseLoudnessMeasurement(
+  stderr: string,
+): LoudnessMeasurement | undefined {
+  const match = /\{[^{}]*"input_i"[\s\S]*?\}/.exec(stderr);
+  if (!match) return undefined;
+
+  try {
+    const parsed: unknown = JSON.parse(match[0]);
+    if (!parsed || typeof parsed !== "object") return undefined;
+    const values = parsed as Record<string, unknown>;
+    const read = (key: string) =>
+      typeof values[key] === "string" ? (values[key] as string) : undefined;
+
+    const inputI = read("input_i");
+    const inputTp = read("input_tp");
+    const inputLra = read("input_lra");
+    const inputThresh = read("input_thresh");
+    const targetOffset = read("target_offset");
+    if (!inputI || !inputTp || !inputLra || !inputThresh || !targetOffset) return undefined;
+
+    return { inputI, inputTp, inputLra, inputThresh, targetOffset };
+  } catch {
+    return undefined;
+  }
 }
 
 /**

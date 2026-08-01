@@ -2,7 +2,9 @@ import { spawn } from "node:child_process";
 
 export class FfmpegError extends Error {}
 
-function run(bin: string, args: string[]): Promise<string> {
+export type Output = { stdout: string; stderr: string };
+
+function run(bin: string, args: string[]): Promise<Output> {
   return new Promise((resolve, reject) => {
     const child = spawn(bin, args, { stdio: ["ignore", "pipe", "pipe"] });
     let stdout = "";
@@ -17,15 +19,23 @@ function run(bin: string, args: string[]): Promise<string> {
       ),
     );
     child.on("close", (code) => {
-      if (code === 0) resolve(stdout.trim());
+      if (code === 0) resolve({ stdout: stdout.trim(), stderr });
       // ffmpeg escribe todo su log en stderr; con código != 0 la cola es el error real.
       else reject(new FfmpegError(`${bin} salió con código ${code}:\n${stderr.slice(-2000)}`));
     });
   });
 }
 
-export const ffmpeg = (args: string[]) => run("ffmpeg", args);
-export const ffprobe = (args: string[]) => run("ffprobe", args);
+export const ffmpeg = async (args: string[]): Promise<void> => {
+  await run("ffmpeg", args);
+};
+
+/** ffmpeg escribe sus informes en stderr, no en stdout: loudnorm entre ellos. */
+export const ffmpegReport = async (args: string[]): Promise<string> =>
+  (await run("ffmpeg", args)).stderr;
+
+export const ffprobe = async (args: string[]): Promise<string> =>
+  (await run("ffprobe", args)).stdout;
 
 export async function durationMs(file: string): Promise<number> {
   const out = await ffprobe([

@@ -1,7 +1,13 @@
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
-import { buildFilterGraph, type Segment, trimTrailingPause } from "@/lib/audio/filter-graph";
-import { durationMs, ffmpeg } from "@/lib/audio/ffmpeg";
+import {
+  buildFilterGraph,
+  type LoudnessMeasurement,
+  parseLoudnessMeasurement,
+  type Segment,
+  trimTrailingPause,
+} from "@/lib/audio/filter-graph";
+import { durationMs, ffmpeg, ffmpegReport } from "@/lib/audio/ffmpeg";
 import * as storage from "@/lib/storage";
 
 export type ClipSegment = {
@@ -12,7 +18,32 @@ export type ClipSegment = {
 
 export type AssembleResult = { audioKey: string; durationMs: number };
 
-/** Concatena los clips de una escena con sus pausas y normaliza el conjunto. */
+/** Recorre la mezcla sin escribirla, sólo para que loudnorm la mida. */
+async function measure(segments: readonly Segment[]): Promise<LoudnessMeasurement | undefined> {
+  const graph = buildFilterGraph(segments);
+  const report = await ffmpegReport([
+    "-hide_banner",
+    "-nostats",
+    ...graph.inputs,
+    "-filter_complex",
+    graph.filterComplex,
+    "-map",
+    graph.outputLabel,
+    "-f",
+    "null",
+    "-",
+  ]);
+  return parseLoudnessMeasurement(report);
+}
+
+/**
+ * Concatena los clips de una escena con sus pausas y normaliza el conjunto.
+ *
+ * Son dos pasadas de ffmpeg: la primera mide la sonoridad y la segunda aplica
+ * una ganancia constante. En una sola pasada loudnorm normaliza de forma
+ * dinámica y una intervención susurrada sale entrecortada, porque le sube y le
+ * baja la ganancia cada pocos milisegundos.
+ */
 export async function assembleScene(
   clips: readonly ClipSegment[],
   outputKey: string,
@@ -22,7 +53,11 @@ export async function assembleScene(
     pauseAfterMs: clip.pauseAfterMs,
   }));
 
-  const graph = buildFilterGraph(trimTrailingPause(segments));
+  const trimmed = trimTrailingPause(segments);
+  // Si la medición falla, se monta con una sola pasada: peor, pero mejor que
+  // quedarse sin audio.
+  const graph = buildFilterGraph(trimmed, await measure(trimmed));
+
   const outputPath = storage.absolute(outputKey);
   await mkdir(path.dirname(outputPath), { recursive: true });
 

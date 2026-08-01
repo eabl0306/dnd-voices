@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   buildFilterGraph,
+  type LoudnessMeasurement,
+  parseLoudnessMeasurement,
   SAMPLE_RATE,
   type Segment,
   trimTrailingPause,
@@ -64,11 +66,80 @@ describe("buildFilterGraph", () => {
     expect(graph.outputLabel).toBe("[out]");
   });
 
+  it("recorta los silencios largos de cada clip, pero no las pausas generadas", () => {
+    // El proveedor deja hasta 1,4 s de silencio al final de un clip; la pausa
+    // que insertamos nosotros es justo la que queremos conservar.
+    const graph = buildFilterGraph([clip("/a.mp3", 300)]);
+    const chains = graph.filterComplex.split(";");
+    expect(chains[0]).toContain("silenceremove");
+    expect(chains[1]).not.toContain("silenceremove");
+  });
+
+  it("mide en la primera pasada y aplica ganancia constante en la segunda", () => {
+    // En una sola pasada loudnorm es dinámico y entrecorta el material flojo.
+    const measuring = buildFilterGraph([clip("/a.mp3")]);
+    expect(measuring.filterComplex).toContain("print_format=json");
+    expect(measuring.filterComplex).not.toContain("linear=true");
+
+    const measurement: LoudnessMeasurement = {
+      inputI: "-12.79",
+      inputTp: "-0.49",
+      inputLra: "5.80",
+      inputThresh: "-24.37",
+      targetOffset: "-2.09",
+    };
+    const applying = buildFilterGraph([clip("/a.mp3")], measurement);
+    expect(applying.filterComplex).toContain("linear=true");
+    expect(applying.filterComplex).toContain("measured_I=-12.79");
+    expect(applying.filterComplex).toContain("offset=-2.09");
+    expect(applying.filterComplex).not.toContain("print_format");
+  });
+
   it("devuelve la salida al ritmo de muestreo de origen", () => {
     // loudnorm trabaja a 192 kHz por dentro; sin volver a 44,1, libmp3lame
     // remuestreaba a 48 kHz con un ratio no entero sobre la fuente.
     const graph = buildFilterGraph([clip("/a.mp3")]);
-    expect(graph.filterComplex).toContain(`loudnorm=I=-16:TP=-1.5:LRA=11,aresample=${SAMPLE_RATE}`);
+    expect(graph.filterComplex).toContain(`aresample=${SAMPLE_RATE}`);
+    // El aformat final fija el layout de salida para la pasada de medición.
+    expect(graph.filterComplex.endsWith("[out]")).toBe(true);
+    expect(graph.filterComplex.indexOf("loudnorm")).toBeLessThan(
+      graph.filterComplex.indexOf("aresample"),
+    );
+  });
+});
+
+describe("parseLoudnessMeasurement", () => {
+  const report = `[Parsed_loudnorm_0 @ 0x55] 
+{
+	"input_i" : "-12.79",
+	"input_tp" : "-0.49",
+	"input_lra" : "5.80",
+	"input_thresh" : "-24.37",
+	"output_i" : "-13.91",
+	"target_offset" : "-2.09"
+}`;
+
+  it("saca los valores del informe de ffmpeg", () => {
+    expect(parseLoudnessMeasurement(report)).toEqual({
+      inputI: "-12.79",
+      inputTp: "-0.49",
+      inputLra: "5.80",
+      inputThresh: "-24.37",
+      targetOffset: "-2.09",
+    });
+  });
+
+  it("devuelve undefined si el informe no trae medición", () => {
+    // Preferible montar con una sola pasada que quedarse sin audio.
+    expect(parseLoudnessMeasurement("ffmpeg version 8.0.1\nnada que ver")).toBeUndefined();
+  });
+
+  it("devuelve undefined con un JSON incompleto", () => {
+    expect(parseLoudnessMeasurement('{ "input_i" : "-12.79" }')).toBeUndefined();
+  });
+
+  it("no revienta con un JSON malformado", () => {
+    expect(parseLoudnessMeasurement('{ "input_i" : ')).toBeUndefined();
   });
 });
 
