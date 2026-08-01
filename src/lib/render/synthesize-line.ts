@@ -1,6 +1,6 @@
 import { cacheKeyFor, clipKey } from "@/lib/render/cache-key";
 import * as storage from "@/lib/storage";
-import { TTS_MODEL, synthesize } from "@/lib/tts/elevenlabs";
+import { OUTPUT_FORMAT, TTS_MODEL, synthesize } from "@/lib/tts/elevenlabs";
 import type { VoiceSettings } from "@/lib/types";
 
 export type LineToSynthesize = {
@@ -34,6 +34,7 @@ export type SynthesizedClip = {
 export async function synthesizeLine(line: LineToSynthesize): Promise<SynthesizedClip> {
   const cacheKey = cacheKeyFor({
     ttsModel: TTS_MODEL,
+    outputFormat: OUTPUT_FORMAT,
     voiceId: line.voiceId,
     languageCode: line.languageCode,
     text: line.text,

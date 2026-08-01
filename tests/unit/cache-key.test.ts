@@ -11,6 +11,7 @@ const SETTINGS: VoiceSettings = {
 
 const BASE: CacheKeyInput = {
   ttsModel: "eleven_multilingual_v2",
+  outputFormat: "mp3_44100_192",
   voiceId: "voice-abc",
   languageCode: "es",
   text: "¡Ya basta de esperar!",
@@ -38,6 +39,8 @@ describe("cacheKeyFor", () => {
     ["voz", { voiceId: "voice-xyz" }],
     ["idioma", { languageCode: "en" }],
     ["modelo", { ttsModel: "eleven_v3" }],
+    // Sin esto, subir la calidad seguiría sirviendo de disco los clips viejos.
+    ["formato de salida", { outputFormat: "mp3_44100_128" }],
   ] as const)("cambia si cambia el %s", (_label, patch) => {
     expect(cacheKeyFor({ ...BASE, ...patch })).not.toBe(cacheKeyFor(BASE));
   });

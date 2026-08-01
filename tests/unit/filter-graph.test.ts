@@ -63,6 +63,13 @@ describe("buildFilterGraph", () => {
     expect(graph.filterComplex.endsWith("[out]")).toBe(true);
     expect(graph.outputLabel).toBe("[out]");
   });
+
+  it("devuelve la salida al ritmo de muestreo de origen", () => {
+    // loudnorm trabaja a 192 kHz por dentro; sin volver a 44,1, libmp3lame
+    // remuestreaba a 48 kHz con un ratio no entero sobre la fuente.
+    const graph = buildFilterGraph([clip("/a.mp3")]);
+    expect(graph.filterComplex).toContain(`loudnorm=I=-16:TP=-1.5:LRA=11,aresample=${SAMPLE_RATE}`);
+  });
 });
 
 describe("trimTrailingPause", () => {

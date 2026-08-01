@@ -38,8 +38,11 @@ export async function assembleScene(
     graph.outputLabel,
     "-c:a",
     "libmp3lame",
+    // Por encima de los 192 kbps que pide el proveedor: concatenar y normalizar
+    // obliga a decodificar y volver a codificar, y hacerlo al mismo bitrate que
+    // la fuente añade pérdida de segunda generación audible en las eses.
     "-b:a",
-    "192k",
+    "256k",
     outputPath,
   ]);
 

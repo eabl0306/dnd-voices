@@ -4,7 +4,7 @@ import { HttpError, requireUser } from "@/lib/api";
 import { db } from "@/lib/db";
 import { cacheKeyFor, clipKey } from "@/lib/render/cache-key";
 import * as storage from "@/lib/storage";
-import { synthesize } from "@/lib/tts/elevenlabs";
+import { OUTPUT_FORMAT, synthesize } from "@/lib/tts/elevenlabs";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -32,6 +32,7 @@ export async function GET(_request: NextRequest, { params }: Params) {
     const key = clipKey(
       cacheKeyFor({
         ttsModel: voice.model,
+        outputFormat: OUTPUT_FORMAT,
         voiceId: voice.externalId,
         languageCode: "es",
         text: SAMPLE,

@@ -137,6 +137,18 @@ credenciales de producción durante la compilación.
 **La normalización de audio se hace al final, no clip a clip.** Normalizar cada
 voz por separado aplanaría justo el contraste entre un susurro y un grito.
 
+**Calidad al máximo que da el plan.** Los clips se piden en `mp3_44100_192`, que
+es el techo comprobado contra la API: `pcm_44100` devuelve 403 por suscripción.
+La mezcla final se codifica a 256 kbps, por encima de la fuente, porque
+concatenar y normalizar obliga a decodificar y volver a codificar, y hacerlo al
+mismo bitrate añadiría pérdida de segunda generación. El formato entra en la
+clave de caché: sin él, subir la calidad seguiría sirviendo los clips viejos.
+
+**El idioma no se le manda al proveedor.** Comprobado con semilla fija:
+`eleven_multilingual_v2` devuelve audio byte a byte idéntico con `es`, con `en`
+y sin el parámetro, así que sólo detecta el idioma del texto. El idioma de la
+campaña sigue existiendo, pero su trabajo es alimentar los prompts de Claude.
+
 **Tres estrategias de voz.** `DESIGNED` genera una voz única con Voice Design y
 consume un slot del plan de ElevenLabs; `POOL` deja que Claude reutilice una voz
 ya registrada y sólo ajuste `stability`/`similarityBoost`/`style`/`speed`;

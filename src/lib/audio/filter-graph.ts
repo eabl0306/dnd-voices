@@ -64,10 +64,14 @@ export function buildFilterGraph(segments: readonly Segment[]): FilterGraph {
   return {
     inputs,
     // loudnorm a -16 LUFS: el estándar de podcast, cómodo con auriculares en mesa.
+    //
+    // El aresample final no sobra: loudnorm trabaja internamente a 192 kHz y
+    // arrastra su salida, con lo que libmp3lame acababa remuestreando a 48 kHz.
+    // Volver a 44,1 evita un remuestreo de ratio no entero sobre la fuente.
     filterComplex: [
       ...filters,
       `${labels.join("")}concat=n=${labels.length}:v=0:a=1[joined]`,
-      "[joined]loudnorm=I=-16:TP=-1.5:LRA=11[out]",
+      `[joined]loudnorm=I=-16:TP=-1.5:LRA=11,aresample=${SAMPLE_RATE}[out]`,
     ].join(";"),
     outputLabel: "[out]",
   };

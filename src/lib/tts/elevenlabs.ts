@@ -10,7 +10,29 @@ import { optional, type VoiceSettings } from "@/lib/types";
 // La app no lista voces del proveedor: la biblioteca vive en nuestra base, y
 // así basta con una clave que pueda sintetizar y diseñar, sin `voices_read`.
 export const TTS_MODEL = "eleven_multilingual_v2";
-export const OUTPUT_FORMAT = "mp3_44100_128" as const;
+
+/**
+ * Lo máximo que admite el plan actual, comprobado contra la API: `mp3_44100_192`
+ * responde 200 y `pcm_44100` devuelve 403 por suscripción insuficiente.
+ *
+ * Si algún día se sube de plan, `pcm_44100` evitaría la primera compresión y
+ * dejaría una sola etapa con pérdida en todo el recorrido; habría que enseñar a
+ * ffmpeg a leer PCM crudo (`-f s16le -ar 44100 -ac 1`).
+ */
+export const OUTPUT_FORMAT = "mp3_44100_192" as const;
+
+/**
+ * Modelos que respetan `language_code`.
+ *
+ * Comprobado con semilla fija: `eleven_multilingual_v2` devuelve audio idéntico
+ * con `es`, con `en` y sin el parámetro, así que lo ignora y sólo detecta el
+ * idioma del texto. Mandárselo sería ruido, y sugeriría un control que no existe.
+ */
+const MODELS_WITH_LANGUAGE_ENFORCEMENT = ["eleven_turbo_v2_5", "eleven_flash_v2_5"];
+
+export function honoursLanguageCode(model: string): boolean {
+  return MODELS_WITH_LANGUAGE_ENFORCEMENT.includes(model);
+}
 
 export const eleven = lazyProxy(
   () => new ElevenLabsClient({ apiKey: env.ELEVENLABS_API_KEY }),
@@ -88,7 +110,10 @@ export async function synthesize(args: SynthesizeArgs): Promise<Buffer> {
     text: args.text,
     modelId: TTS_MODEL,
     outputFormat: OUTPUT_FORMAT,
-    ...optional("languageCode", args.languageCode),
+    ...optional(
+      "languageCode",
+      honoursLanguageCode(TTS_MODEL) ? args.languageCode : undefined,
+    ),
     ...optional("previousText", args.previousText),
     ...optional("nextText", args.nextText),
     ...optional("voiceSettings", voiceSettings),

@@ -9,6 +9,7 @@ const storageMock = vi.hoisted(() => ({
 const ttsMock = vi.hoisted(() => ({
   synthesize: vi.fn<() => Promise<Buffer>>(),
   TTS_MODEL: "eleven_multilingual_v2",
+  OUTPUT_FORMAT: "mp3_44100_192",
 }));
 
 vi.mock("@/lib/storage", () => storageMock);
