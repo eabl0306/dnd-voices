@@ -93,7 +93,10 @@ async function synthesizeAll(
       fadeOutMs: line.fadeOutMs,
     });
 
-    await db.line.update({
+    // updateMany y no update: si la línea se borró mientras el render corría,
+    // update lanzaría P2025 y tiraría el render entero con el TTS ya facturado.
+    // La ruta de borrado lo impide con un 409, pero esto es la red de seguridad.
+    await db.line.updateMany({
       where: { id: line.id },
       data: {
         cacheKey: clip.cacheKey,

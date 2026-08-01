@@ -32,13 +32,16 @@ function MsField({
 }) {
   const [draft, setDraft] = useState(String(value));
   const [lastValue, setLastValue] = useState(value);
+  const [focused, setFocused] = useState(false);
 
   // Si el servidor cambia el valor (otro refresco, reanálisis), el borrador
   // deja de tener sentido y se descarta. Ajustar el estado durante el render —
-  // y no en un efecto — evita pintar un frame con el valor viejo.
+  // y no en un efecto — evita pintar un frame con el valor viejo. Con el foco
+  // dentro no se toca: el eco del commit anterior llegaría en pleno tecleo y
+  // pisaría lo que el DM está escribiendo ahora.
   if (value !== lastValue) {
     setLastValue(value);
-    setDraft(String(value));
+    if (!focused) setDraft(String(value));
   }
 
   const commit = () => {
@@ -63,7 +66,11 @@ function MsField({
         value={draft}
         aria-label={ariaLabel}
         onChange={(event) => setDraft(event.target.value)}
-        onBlur={commit}
+        onFocus={() => setFocused(true)}
+        onBlur={() => {
+          setFocused(false);
+          commit();
+        }}
         onKeyDown={(event) => {
           if (event.key === "Enter") event.currentTarget.blur();
         }}

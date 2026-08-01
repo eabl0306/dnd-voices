@@ -45,6 +45,10 @@ export async function audioFileResponse(
     "Content-Type": "audio/mpeg",
     "Accept-Ranges": "bytes",
     "Cache-Control": options.cacheControl,
+    // `private` frena a los proxies, pero la caché del navegador no separa por
+    // sesión: sin Vary, otra cuenta en el mismo perfil recibiría el audio
+    // cacheado sin pasar por la comprobación de propiedad.
+    Vary: "Cookie",
   });
   if (options.filename) {
     headers.set("Content-Disposition", `inline; filename="${options.filename}"`);

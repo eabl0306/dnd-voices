@@ -5,8 +5,16 @@ import * as storage from "@/lib/storage";
 
 const ROOT = path.resolve("./.tmp-test-storage");
 
+/** Claves que escribe este fichero; la limpieza borra sólo éstas. */
+const WRITTEN = ["clips/prueba.mp3", "renders/anidado"] as const;
+
+// Los ficheros de test comparten STORAGE_DIR y corren en paralelo: borrar el
+// root entero aquí hacía desaparecer, según el orden de planificación, los
+// ficheros que api-audio.test.ts acababa de escribir.
 afterAll(async () => {
-  await rm(ROOT, { recursive: true, force: true });
+  for (const key of WRITTEN) {
+    await rm(path.join(ROOT, key), { recursive: true, force: true });
+  }
 });
 
 describe("hash", () => {

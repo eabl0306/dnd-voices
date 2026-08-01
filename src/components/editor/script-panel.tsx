@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { EditorPanel } from "@/components/editor/editor-panel";
 import { type LineAudioPatch, ScriptLine } from "@/components/editor/script-line";
 import { ErrorNote, GlyphBox } from "@/components/ui";
@@ -32,6 +32,15 @@ export function ScriptPanel({
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [playError, setPlayError] = useState("");
 
+  // Si la línea que suena desaparece del guion (se borró), su botón de pausa
+  // desaparece con ella: sin esto el clip seguiría sonando sin ningún control.
+  // El pause() dispara el evento pause, que ya limpia playingId.
+  useEffect(() => {
+    if (playingId && !lines.some((line) => line.id === playingId)) {
+      lineAudio.current?.pause();
+    }
+  }, [lines, playingId]);
+
   function togglePlay(lineId: string) {
     const element = lineAudio.current;
     if (!element) return;
@@ -43,8 +52,13 @@ export function ScriptPanel({
     }
 
     setPlayError("");
+    // El id se marca ya, no cuando play() resuelva: cambiar el src silencia la
+    // línea anterior al instante y con red lenta los iconos mentirían segundos.
+    setPlayingId(lineId);
     element.src = `/api/lines/${lineId}/audio`;
     element.play().then(
+      // Se reafirma al arrancar por si el cambio de src disparó un pause que
+      // haya limpiado el id optimista.
       () => setPlayingId(lineId),
       (cause: unknown) => {
         // Pulsar otra línea antes de que arranque ésta aborta el play anterior:

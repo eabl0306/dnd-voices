@@ -46,12 +46,20 @@ export default function ScenePage() {
   // Sondea sólo mientras hay un render vivo: parar evita machacar la API.
   useEffect(() => {
     if (!render || isRenderSettled(render.status)) return;
+    // clearInterval no cancela una petición ya en vuelo: sin esta bandera, una
+    // respuesta rezagada del render anterior resucitaría su estado y taparía
+    // al render recién encolado.
+    let alive = true;
     const timer = setInterval(async () => {
       const updated = await api<RenderDto>(`/api/renders/${render.id}`);
+      if (!alive) return;
       setRenderOverride(updated);
       if (updated.status === "DONE") await refresh();
     }, RENDER_POLL_MS);
-    return () => clearInterval(timer);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+    };
   }, [render, refresh]);
 
   const saveRawText = async () => {
@@ -160,7 +168,10 @@ export default function ScenePage() {
           <RenderPanel
             render={render}
             onRender={onRender}
-            busy={pending !== "" || renderBusy}
+            // Ajustar una pausa hace commit en el blur: si eso contara como
+            // ocupado, el clic en «Generar audio» que provocó ese blur caería
+            // sobre un botón recién deshabilitado y se perdería.
+            busy={(pending !== "" && pending !== "line-audio") || renderBusy}
             hint={
               withoutVoice > 0
                 ? `${withoutVoice} ${withoutVoice === 1 ? "personaje sigue" : "personajes siguen"} sin voz lista.`

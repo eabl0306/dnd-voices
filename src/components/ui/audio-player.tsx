@@ -95,6 +95,15 @@ export function AudioPlayer({
           onPointerUp={() => {
             scrubbing.current = false;
           }}
+          // En táctil, un arrastre diagonal se convierte en scroll y el gesto
+          // termina en pointercancel, no en pointerup: sin esto la barra se
+          // quedaba congelada ignorando los timeupdate para siempre.
+          onPointerCancel={() => {
+            scrubbing.current = false;
+          }}
+          onLostPointerCapture={() => {
+            scrubbing.current = false;
+          }}
           className="w-full accent-[var(--accent)]"
         />
         <div className="flex justify-between font-mono text-[11.5px] text-text3">

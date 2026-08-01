@@ -72,6 +72,13 @@ describe("audioFileResponse", () => {
     expect(response.headers.get("Cache-Control")).toBe("private, no-store");
   });
 
+  it("varía por cookie: la caché del navegador no separa por sesión", async () => {
+    // Sin Vary, otra cuenta del mismo perfil recibiría el audio cacheado sin
+    // pasar por la comprobación de propiedad.
+    const response = await audioFileResponse(request(), KEY, CACHE);
+    expect(response.headers.get("Vary")).toBe("Cookie");
+  });
+
   it("incluye el nombre de descarga sólo cuando se pide", async () => {
     const named = await audioFileResponse(request(), KEY, {
       filename: "escena.mp3",
