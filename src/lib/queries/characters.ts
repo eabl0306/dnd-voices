@@ -13,7 +13,8 @@ export const CHARACTER_SELECT = {
   voiceRefId: true,
   voiceBrief: true,
   voiceError: true,
-  voiceRef: { select: { name: true } },
+  voiceSettings: true,
+  voiceRef: { select: { name: true, model: true } },
   _count: { select: { lines: true } },
 } as const;
 
@@ -29,13 +30,20 @@ type CharacterRow = {
   voiceRefId: string | null;
   voiceBrief: string | null;
   voiceError: string | null;
-  voiceRef: { name: string } | null;
+  voiceSettings: unknown;
+  voiceRef: { name: string; model: string } | null;
   _count: { lines: number };
 };
 
 export function toCharacterDto(character: CharacterRow): CharacterDto {
-  const { voiceRef, _count, ...rest } = character;
-  return { ...rest, voiceName: voiceRef?.name ?? null, lineCount: _count.lines };
+  const { voiceRef, voiceSettings, _count, ...rest } = character;
+  return {
+    ...rest,
+    voiceName: voiceRef?.name ?? null,
+    voiceModel: voiceRef?.model ?? null,
+    voiceSettings: (voiceSettings as CharacterDto["voiceSettings"]) ?? null,
+    lineCount: _count.lines,
+  };
 }
 
 export async function listCharacters(campaignId: string): Promise<CharacterDto[]> {

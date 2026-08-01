@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
+import { OUTPUT_FORMAT } from "@/lib/tts/elevenlabs";
 import {
   acceptsNeighbourContext,
   DEFAULT_TTS_MODEL,
   honoursLanguageCode,
-  OUTPUT_FORMAT,
   supportsAudioTags,
   withDelivery,
-} from "@/lib/tts/elevenlabs";
+} from "@/lib/tts/model";
 
 describe("configuración de síntesis", () => {
   it("pide el formato de mayor calidad que admite el plan", () => {

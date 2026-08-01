@@ -149,6 +149,20 @@ concatenar y normalizar obliga a decodificar y volver a codificar, y hacerlo al
 mismo bitrate añadiría pérdida de segunda generación. El formato entra en la
 clave de caché: sin él, subir la calidad seguiría sirviendo los clips viejos.
 
+**v3 interpreta pero no encadena; v2 encadena pero no interpreta.** Comprobado
+contra la API: v3 responde 400 `unsupported_model` tanto a `previous_text` como
+a `previous_request_ids`, así que cada intervención suya es una toma
+independiente y el timbre se mueve entre turnos del mismo personaje. Ninguno de
+los dos es determinista: la misma petición con la misma semilla devuelve audio
+distinto. Por eso el narrador va en v2 —es quien más habla y donde más se nota
+el salto— y los personajes en v3, donde el matiz por línea compensa.
+
+**Cada modelo respeta unos ajustes distintos, y la interfaz sólo enseña los que
+hacen algo.** Medido por la duración de la salida: v2 con `speed` 0,8 devuelve
+116 KB y con 1,15 devuelve 79 KB, mientras que v3 devuelve el mismo tamaño con
+cualquier valor. En v3 sólo `stability` cambia el resultado. Un control que no
+mueve nada es peor que no tenerlo.
+
 **El idioma no se le manda al proveedor.** Comprobado con semilla fija:
 `eleven_multilingual_v2` devuelve audio byte a byte idéntico con `es`, con `en`
 y sin el parámetro, así que sólo detecta el idioma del texto. El idioma de la

@@ -1,11 +1,7 @@
 import { cacheKeyFor, clipKey } from "@/lib/render/cache-key";
 import * as storage from "@/lib/storage";
-import {
-  acceptsNeighbourContext,
-  OUTPUT_FORMAT,
-  synthesize,
-  withDelivery,
-} from "@/lib/tts/elevenlabs";
+import { OUTPUT_FORMAT, synthesize } from "@/lib/tts/elevenlabs";
+import { acceptsNeighbourContext, withDelivery } from "@/lib/tts/model";
 import type { VoiceSettings } from "@/lib/types";
 
 export type LineToSynthesize = {

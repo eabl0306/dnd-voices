@@ -76,6 +76,14 @@ export type CharacterDto = {
   voiceName: string | null;
   voiceBrief: string | null;
   voiceError: string | null;
+  /** Modelo de la voz asignada; decide qué ajustes tienen efecto. */
+  voiceModel: string | null;
+  voiceSettings: {
+    stability: number;
+    similarityBoost: number;
+    style: number;
+    speed: number;
+  } | null;
   /** Intervenciones suyas en la escena abierta. */
   lineCount: number;
 };

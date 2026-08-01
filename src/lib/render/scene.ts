@@ -3,7 +3,7 @@ import { durationMs } from "@/lib/audio/ffmpeg";
 import { db } from "@/lib/db";
 import { messageOf } from "@/lib/render/parse";
 import { synthesizeLine } from "@/lib/render/synthesize-line";
-import { DEFAULT_TTS_MODEL } from "@/lib/tts/elevenlabs";
+import { DEFAULT_TTS_MODEL } from "@/lib/tts/model";
 import * as storage from "@/lib/storage";
 import type { VoiceSettings } from "@/lib/types";
 

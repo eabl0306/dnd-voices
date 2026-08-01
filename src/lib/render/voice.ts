@@ -3,13 +3,10 @@ import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { listAssignableVoices } from "@/lib/queries/voices";
 import { messageOf } from "@/lib/render/parse";
-import {
-  DEFAULT_TTS_MODEL,
-  deleteVoice,
-  designVoicePreviews,
-  saveDesignedVoice,
-} from "@/lib/tts/elevenlabs";
+import { deleteVoice, designVoicePreviews, saveDesignedVoice } from "@/lib/tts/elevenlabs";
+import { DEFAULT_TTS_MODEL } from "@/lib/tts/model";
 import type { VoiceSettings } from "@/lib/types";
+import { defaultVoiceSettings } from "@/lib/voice-settings";
 
 type Assignment = {
   voiceId: string;
@@ -114,7 +111,11 @@ async function castFromPool(context: Context): Promise<Assignment> {
 }
 
 /** El DM ya eligió la voz: sólo hay que fijarla, sin llamar a ningún modelo. */
-async function assignChosenVoice(voiceRefId: string | null, userId: string): Promise<Assignment> {
+async function assignChosenVoice(
+  voiceRefId: string | null,
+  userId: string,
+  isNarrator: boolean,
+): Promise<Assignment> {
   if (!voiceRefId) {
     throw new Error("No se ha elegido ninguna voz de la biblioteca para este personaje.");
   }
@@ -125,7 +126,9 @@ async function assignChosenVoice(voiceRefId: string | null, userId: string): Pro
     voiceId: voice.externalId,
     voiceRefId: voice.id,
     voiceBrief: `Elegida a mano: ${voice.name}.`,
-    voiceSettings: null,
+    // Sin ajustes, el proveedor usa los suyos y el personaje suena distinto en
+    // cada intervención. Se parte de unos valores razonables y editables.
+    voiceSettings: defaultVoiceSettings(isNarrator),
   };
 }
 
@@ -186,7 +189,7 @@ export async function provisionVoice(characterId: string): Promise<void> {
       character.voiceStrategy === "DESIGNED"
         ? await designVoice(context)
         : character.voiceStrategy === "LIBRARY"
-          ? await assignChosenVoice(character.voiceRefId, context.userId)
+          ? await assignChosenVoice(character.voiceRefId, context.userId, character.isNarrator)
           : await castFromPool(context);
 
     await db.character.update({

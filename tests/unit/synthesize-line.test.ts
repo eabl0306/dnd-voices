@@ -9,9 +9,6 @@ const storageMock = vi.hoisted(() => ({
 const ttsMock = vi.hoisted(() => ({
   synthesize: vi.fn<() => Promise<Buffer>>(),
   OUTPUT_FORMAT: "mp3_44100_192",
-  acceptsNeighbourContext: (model: string) => !model.startsWith("eleven_v3"),
-  withDelivery: (text: string, delivery: string | null, model: string) =>
-    delivery && model.startsWith("eleven_v3") ? `[${delivery}] ${text}` : text,
 }));
 
 vi.mock("@/lib/storage", () => storageMock);

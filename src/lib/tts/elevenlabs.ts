@@ -1,19 +1,11 @@
 import { ElevenLabsClient } from "@elevenlabs/elevenlabs-js";
 import { env } from "@/lib/env";
 import { lazyProxy } from "@/lib/lazy";
+import { acceptsNeighbourContext, honoursLanguageCode } from "@/lib/tts/model";
 import { optional, type VoiceSettings } from "@/lib/types";
 
 // La app no lista voces del proveedor: la biblioteca vive en nuestra base, y
 // así basta con una clave que pueda sintetizar y diseñar, sin `voices_read`.
-
-/**
- * Modelo por defecto de una voz nueva.
- *
- * v3 es el más expresivo y el único que entiende indicaciones de interpretación
- * en el texto. Cada voz puede llevar el suyo: el narrador, que lee la mayor
- * parte del texto, puede salir más barato con multilingual_v2.
- */
-export const DEFAULT_TTS_MODEL = "eleven_v3";
 
 /**
  * Lo máximo que admite el plan actual, comprobado contra la API: `mp3_44100_192`
@@ -24,48 +16,6 @@ export const DEFAULT_TTS_MODEL = "eleven_v3";
  * ffmpeg a leer PCM crudo (`-f s16le -ar 44100 -ac 1`).
  */
 export const OUTPUT_FORMAT = "mp3_44100_192" as const;
-
-/**
- * Modelos que respetan `language_code`.
- *
- * Comprobado con semilla fija: `eleven_multilingual_v2` devuelve audio idéntico
- * con `es`, con `en` y sin el parámetro, así que lo ignora y sólo detecta el
- * idioma del texto. Mandárselo sería ruido, y sugeriría un control que no existe.
- */
-const MODELS_WITH_LANGUAGE_ENFORCEMENT = ["eleven_turbo_v2_5", "eleven_flash_v2_5"];
-
-export function honoursLanguageCode(model: string): boolean {
-  return MODELS_WITH_LANGUAGE_ENFORCEMENT.includes(model);
-}
-
-/**
- * Modelos que aceptan `previous_text` / `next_text` para dar continuidad
- * prosódica entre líneas contiguas.
- *
- * Comprobado contra la API: v3 responde 400 `unsupported_model` si se le
- * mandan, así que enviarlos rompería el render entero en vez de degradarlo.
- */
-export function acceptsNeighbourContext(model: string): boolean {
-  return !model.startsWith("eleven_v3");
-}
-
-/**
- * Modelos que entienden indicaciones de interpretación entre corchetes.
- *
- * Comprobado transcribiendo la salida: con `[susurrando]` delante, la
- * transcripción es idéntica a la del texto pelado —la etiqueta no se lee en voz
- * alta— pero la duración pasa de 3,47 s a 4,28 s. La entiende también en
- * español, así que sirve el `delivery` que ya extrae Claude sin traducirlo.
- */
-export function supportsAudioTags(model: string): boolean {
-  return model.startsWith("eleven_v3");
-}
-
-/** Antepone la indicación de interpretación si el modelo sabe leerla. */
-export function withDelivery(text: string, delivery: string | null, model: string): string {
-  if (!delivery || !supportsAudioTags(model)) return text;
-  return `[${delivery}] ${text}`;
-}
 
 export const eleven = lazyProxy(
   () => new ElevenLabsClient({ apiKey: env.ELEVENLABS_API_KEY }),

@@ -5,6 +5,8 @@ import { db } from "@/lib/db";
 import { CHARACTER_SELECT, toCharacterDto } from "@/lib/queries/characters";
 import { voiceQueue } from "@/lib/queue";
 import { compact } from "@/lib/types";
+import { clampVoiceSettings } from "@/lib/voice-settings";
+import { VoiceSettingsSchema } from "@/lib/ai/schemas";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -16,6 +18,8 @@ const UpdateCharacter = z.object({
   isNarrator: z.boolean().optional(),
   voiceStrategy: z.enum(["DESIGNED", "POOL", "LIBRARY"]).optional(),
   voiceRefId: z.string().min(1).nullable().optional(),
+  /** Ajuste fino del personaje, sin volver a castear. */
+  voiceSettings: VoiceSettingsSchema.optional(),
   /** Reencola el casting. La UI lo activa al cambiar de estrategia. */
   provisionVoice: z.boolean().default(false),
 });
@@ -38,10 +42,18 @@ export function PATCH(request: NextRequest, { params }: Params) {
       if (owned === 0) throw new HttpError(400, "Esa voz no está en tu biblioteca.");
     }
 
+    // Recastear sobrescribe los ajustes con los que elija la IA, así que un
+    // cambio de estrategia y un ajuste fino no pueden ir en la misma petición.
+    const settings =
+      data.voiceSettings && !provisionVoice
+        ? { voiceSettings: clampVoiceSettings(data.voiceSettings) }
+        : {};
+
     const character = await db.character.update({
       where: { id },
       data: compact({
         ...data,
+        ...settings,
         // Reencolar deja la tarjeta en «asignando»: el estado tiene que
         // reflejarlo desde ya, o parecería que no ha pasado nada.
         ...(provisionVoice ? { voiceStatus: "PENDING" as const, voiceError: null } : {}),
