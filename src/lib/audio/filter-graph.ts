@@ -34,9 +34,14 @@ const FORMAT = `aformat=sample_fmts=fltp:sample_rates=${SAMPLE_RATE}:channel_lay
  * chasquido final a −46 dB. Ese chasquido impide recortar sólo por la cola, así
  * que se recortan los silencios estén donde estén, dejando 0,35 s —una pausa
  * natural— para no comerse el aire entre frases de una misma intervención.
+ *
+ * El umbral es −45 dB y no el −60 dB de manual: v3 no deja silencio digital
+ * entre frases, deja ~0,7 s de fondo a −47 dB. A −60 dB eso no se tocaba y una
+ * línea corta se oía partida por la mitad. Verificado transcribiendo la voz más
+ * susurrada del reparto antes y después: −45 dB no se come ninguna palabra.
  */
 const TRIM_SILENCE =
-  "silenceremove=stop_periods=-1:stop_duration=0.35:stop_threshold=-60dB";
+  "silenceremove=stop_periods=-1:stop_duration=0.35:stop_threshold=-45dB";
 
 const TARGET = "I=-16:TP=-1.5:LRA=11";
 
