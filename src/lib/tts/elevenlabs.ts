@@ -1,12 +1,14 @@
 import { ElevenLabsClient } from "@elevenlabs/elevenlabs-js";
 import { env } from "@/lib/env";
 import { lazyProxy } from "@/lib/lazy";
-import { optional, type PoolVoice, type VoiceSettings } from "@/lib/types";
+import { optional, type VoiceSettings } from "@/lib/types";
 
 /**
  * eleven_v3 da la mejor interpretación pero es el más caro y lento.
  * eleven_multilingual_v2 es el punto dulce para partidas largas en español.
  */
+// La app no lista voces del proveedor: la biblioteca vive en nuestra base, y
+// así basta con una clave que pueda sintetizar y diseñar, sin `voices_read`.
 export const TTS_MODEL = "eleven_multilingual_v2";
 export const OUTPUT_FORMAT = "mp3_44100_128" as const;
 
@@ -23,17 +25,6 @@ async function collect(stream: ReadableStream<Uint8Array>): Promise<Buffer> {
     if (value) chunks.push(value);
   }
   return Buffer.concat(chunks);
-}
-
-/** Voces disponibles en la cuenta, para que Claude elija en la estrategia POOL. */
-export async function listPool(): Promise<PoolVoice[]> {
-  const page = await eleven.voices.search({ pageSize: 100 });
-  return (page.voices ?? []).map((voice) => ({
-    voiceId: voice.voiceId,
-    name: voice.name ?? "(sin nombre)",
-    description: voice.description ?? "",
-    labels: (voice.labels ?? {}) as Record<string, string>,
-  }));
 }
 
 export type DesignedPreview = {

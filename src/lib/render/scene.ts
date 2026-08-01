@@ -6,7 +6,7 @@ import { synthesizeLine } from "@/lib/render/synthesize-line";
 import * as storage from "@/lib/storage";
 import type { VoiceSettings } from "@/lib/types";
 
-type RenderableLine = {
+export type RenderableLine = {
   id: string;
   text: string;
   pauseAfter: number;
@@ -28,15 +28,25 @@ function asSettings(value: unknown): VoiceSettings | null {
  * Un fallo a mitad del render deja caracteres ya facturados, así que las
  * precondiciones se comprueban todas antes de la primera llamada a ElevenLabs.
  */
-function assertRenderable(lines: readonly RenderableLine[]): void {
+export function assertRenderable(lines: readonly RenderableLine[]): void {
   if (lines.length === 0) {
     throw new Error("La escena no tiene líneas: analiza el texto antes de renderizar.");
   }
-  const missing = lines.find((line) => !line.character?.voiceId);
-  if (missing) {
-    const who = missing.character?.name ?? "una línea sin personaje asignado";
+
+  // Dos fallos distintos con dos arreglos distintos: sin hablante se corrige en
+  // el guion; sin voz, en el reparto. Un solo mensaje mandaría a media escena
+  // al sitio equivocado.
+  const unassigned = lines.filter((line) => line.character === null).length;
+  if (unassigned > 0) {
     throw new Error(
-      `Falta la voz de ${who}. Asigna voces a todo el reparto antes de renderizar.`,
+      `${unassigned} ${unassigned === 1 ? "intervención sigue" : "intervenciones siguen"} sin personaje. Asígnalas en el guion antes de renderizar.`,
+    );
+  }
+
+  const voiceless = lines.find((line) => !line.character?.voiceId);
+  if (voiceless?.character) {
+    throw new Error(
+      `${voiceless.character.name} todavía no tiene voz asignada. Asígnasela antes de renderizar.`,
     );
   }
 }

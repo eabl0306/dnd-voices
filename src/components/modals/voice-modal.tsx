@@ -29,6 +29,7 @@ export function VoiceModal({
     [campaignId],
   );
   const { data: voices } = usePoll(fetcher);
+  const hasVoices = (voices?.length ?? 0) > 0;
 
   const submit = () =>
     void run("save", async () => {
@@ -59,7 +60,7 @@ export function VoiceModal({
     >
       <div className="flex flex-col gap-[14px]">
         <p className="font-mono text-[11.5px] text-text3">Ahora: {current}</p>
-        <StrategyPicker value={strategy} onChange={setStrategy} />
+        <StrategyPicker value={strategy} onChange={setStrategy} hasVoices={hasVoices} />
         {strategy === "LIBRARY" && (
           <VoiceGrid voices={voices ?? []} selectedId={voiceRefId} onSelect={setVoiceRefId} />
         )}

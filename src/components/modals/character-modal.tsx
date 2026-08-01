@@ -13,16 +13,22 @@ export function CharacterModal({
   character,
   onClose,
   onSaved,
+  onDeleted,
 }: {
   campaignId: string;
   character?: CharacterDto;
   onClose: () => void;
   onSaved: () => void | Promise<void>;
+  onDeleted?: () => void | Promise<void>;
 }) {
   const editing = Boolean(character);
   const [name, setName] = useState(character?.name ?? "");
   const [isNarrator, setIsNarrator] = useState(character?.isNarrator ?? false);
-  const [strategy, setStrategy] = useState<VoiceStrategy>(character?.voiceStrategy ?? "POOL");
+  // Con la biblioteca vacía, «pool» no tiene de dónde elegir: la primera voz
+  // de una cuenta nueva tiene que generarse.
+  const [strategy, setStrategy] = useState<VoiceStrategy | undefined>(
+    character?.voiceStrategy,
+  );
   const [voiceRefId, setVoiceRefId] = useState<string | null>(character?.voiceRefId ?? null);
   const [description, setDescription] = useState(character?.description ?? "");
   const [backstory, setBackstory] = useState(character?.backstory ?? "");
@@ -33,12 +39,14 @@ export function CharacterModal({
     [campaignId],
   );
   const { data: voices } = usePoll(fetcher);
+  const hasVoices = (voices?.length ?? 0) > 0;
+  const effectiveStrategy: VoiceStrategy = strategy ?? (hasVoices ? "POOL" : "DESIGNED");
 
   // Al editar, cambiar de estrategia o de voz obliga a recastear; tocar sólo
   // el trasfondo no debería regenerar una voz que ya funciona.
   const voiceChanged =
     !editing ||
-    strategy !== character?.voiceStrategy ||
+    effectiveStrategy !== character?.voiceStrategy ||
     voiceRefId !== (character?.voiceRefId ?? null);
 
   const submit = () =>
@@ -46,8 +54,8 @@ export function CharacterModal({
       const payload = {
         name,
         isNarrator,
-        voiceStrategy: strategy,
-        voiceRefId: strategy === "LIBRARY" ? voiceRefId : null,
+        voiceStrategy: effectiveStrategy,
+        voiceRefId: effectiveStrategy === "LIBRARY" ? voiceRefId : null,
         description,
         backstory,
         provisionVoice: voiceChanged,
@@ -59,6 +67,17 @@ export function CharacterModal({
       await onSaved();
     });
 
+  const remove = () =>
+    void run("delete", async () => {
+      const lines =
+        character && character.lineCount > 0
+          ? `Tiene ${character.lineCount} intervenciones, que quedarán sin personaje. `
+          : "";
+      if (!confirm(`${lines}¿Borrar a ${character?.name} del reparto?`)) return;
+      await api(`/api/characters/${character?.id}`, { method: "DELETE" });
+      await onDeleted?.();
+    });
+
   return (
     <Modal
       title={editing ? `Editar ${character?.name}` : "Nuevo personaje"}
@@ -67,9 +86,12 @@ export function CharacterModal({
       note={error ?? (voiceChanged && editing ? "Se volverá a asignar la voz." : undefined)}
       submitLabel={editing ? "Guardar cambios" : "Añadir personaje"}
       submitting={pending !== ""}
-      submitDisabled={!name.trim() || (strategy === "LIBRARY" && !voiceRefId)}
+      submitDisabled={!name.trim() || (effectiveStrategy === "LIBRARY" && !voiceRefId)}
       onSubmit={submit}
       onClose={onClose}
+      {...(editing && onDeleted
+        ? { destructive: { label: "Borrar personaje", onClick: remove } }
+        : {})}
     >
       <div className="flex flex-col gap-[14px]">
         <div className="grid grid-cols-[repeat(auto-fit,minmax(210px,1fr))] gap-[14px]">
@@ -96,10 +118,14 @@ export function CharacterModal({
 
         <div>
           <span className="mb-2 block text-[13px] text-text2">Estrategia de voz</span>
-          <StrategyPicker value={strategy} onChange={setStrategy} />
+          <StrategyPicker
+            value={effectiveStrategy}
+            onChange={setStrategy}
+            hasVoices={hasVoices}
+          />
         </div>
 
-        {strategy === "LIBRARY" && (
+        {effectiveStrategy === "LIBRARY" && (
           <VoiceGrid voices={voices ?? []} selectedId={voiceRefId} onSelect={setVoiceRefId} />
         )}
 

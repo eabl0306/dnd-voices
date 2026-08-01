@@ -42,7 +42,7 @@ test.describe("biblioteca de voces", () => {
     });
 
     await page.goto(`/campaigns/${campaign.id}/characters`);
-    await page.getByRole("button", { name: "Nuevo personaje" }).first().click();
+    await page.getByRole("button", { name: "Añadir el primer personaje" }).click();
     await page.getByLabel("Nombre").fill("Hermana Ilva");
     await page.getByRole("radio", { name: /Elegir voz concreta/ }).click();
 

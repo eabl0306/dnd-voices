@@ -76,11 +76,9 @@ export function CharacterCard({
           </span>
         </span>
         <MonoButton onClick={() => onEdit(character)}>Editar</MonoButton>
-        <MonoButton
-          onClick={() => onChangeVoice(character)}
-          disabled={busy}
-          tone={failed ? "err" : "neutral"}
-        >
+        {/* Sigue disponible mientras asigna: si el worker está parado, el
+            personaje se quedaría en «asignando» sin ninguna forma de salir. */}
+        <MonoButton onClick={() => onChangeVoice(character)} tone={failed ? "err" : "neutral"}>
           {failed ? "Reintentar" : "Cambiar voz"}
         </MonoButton>
       </div>

@@ -33,21 +33,10 @@ export function POST(request: NextRequest) {
     const user = await requireUser();
     const body = CreateCampaign.parse(await request.json());
 
-    return db.campaign.create({
-      data: {
-        ...body,
-        userId: user.id,
-        // Toda campaña necesita narrador: crearlo aquí evita que la primera
-        // escena falle por no tener a quién atribuir la narración.
-        characters: {
-          create: {
-            name: "Narrador",
-            isNarrator: true,
-            description: "Voz que describe la escena, el ambiente y la acción.",
-            voiceStrategy: "DESIGNED",
-          },
-        },
-      },
-    });
+    // La campaña nace sin reparto. Crear un narrador por defecto obligaba a
+    // encolar su casting desde aquí, y al no hacerlo se quedaba en «asignando
+    // voz…» para siempre. El reparto lo da de alta el DM, que además así elige
+    // la estrategia de voz en vez de heredar una.
+    return db.campaign.create({ data: { ...body, userId: user.id } });
   });
 }

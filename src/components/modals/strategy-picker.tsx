@@ -24,22 +24,28 @@ export const STRATEGIES: { value: VoiceStrategy; label: string; hint: string }[]
 export function StrategyPicker({
   value,
   onChange,
+  /** Sin ninguna voz registrada, reutilizar y elegir no llevan a ningún sitio. */
+  hasVoices,
 }: {
   value: VoiceStrategy;
   onChange: (strategy: VoiceStrategy) => void;
+  hasVoices: boolean;
 }) {
   return (
     <div role="radiogroup" aria-label="Estrategia de voz" className="flex flex-col gap-2">
       {STRATEGIES.map((strategy) => {
         const active = strategy.value === value;
+        // Ofrecerlas con la biblioteca vacía sólo produce un casting fallido.
+        const unavailable = !hasVoices && strategy.value !== "DESIGNED";
         return (
           <button
             key={strategy.value}
             type="button"
             role="radio"
             aria-checked={active}
+            disabled={unavailable}
             onClick={() => onChange(strategy.value)}
-            className={`flex items-start gap-[10px] rounded-[8px] border px-3 py-[10px] text-left transition ${
+            className={`flex items-start gap-[10px] rounded-[8px] border px-3 py-[10px] text-left transition disabled:opacity-45 ${
               active ? "border-accent bg-accent-soft" : "border-line hover:border-line2"
             }`}
           >
@@ -59,7 +65,9 @@ export function StrategyPicker({
                 {strategy.label}
               </span>
               <span className="block text-[12.5px] leading-[1.45] text-text3">
-                {strategy.hint}
+                {unavailable
+                  ? "Todavía no hay ninguna voz registrada. Genera la primera y esta opción se abrirá."
+                  : strategy.hint}
               </span>
             </span>
           </button>

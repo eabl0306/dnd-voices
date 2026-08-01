@@ -54,11 +54,11 @@ secret: ## Genera un valor para BETTER_AUTH_SECRET
 # --- Desarrollo ---------------------------------------------------------
 
 .PHONY: dev
-dev: infra ## Arranca el servidor web con recarga en caliente
+dev: db ## Arranca el servidor web con recarga en caliente
 	DATABASE_URL=$(DEV_DB_URL) REDIS_URL=$(DEV_REDIS_URL) npm run dev
 
 .PHONY: worker
-worker: infra ## Arranca el worker de casting y render (hace falta ffmpeg)
+worker: db ## Arranca el worker de casting y render (hace falta ffmpeg)
 	DATABASE_URL=$(DEV_DB_URL) REDIS_URL=$(DEV_REDIS_URL) npm run worker
 
 .PHONY: infra
@@ -71,6 +71,9 @@ infra: ## Levanta sólo Postgres y Redis, para desarrollar en el host
 	else \
 		$(COMPOSE_DEV) up -d --wait; \
 	fi
+
+.PHONY: db
+db: infra migrate-deploy ## Infraestructura levantada y esquema al día
 
 .PHONY: infra-down
 infra-down: ## Para la infraestructura de desarrollo
@@ -102,7 +105,7 @@ generate: ## Regenera el cliente de Prisma
 	npx prisma generate
 
 .PHONY: studio
-studio: infra ## Abre Prisma Studio sobre la base de desarrollo
+studio: db ## Abre Prisma Studio sobre la base de desarrollo
 	DATABASE_URL=$(DEV_DB_URL) npx prisma studio
 
 .PHONY: db-reset
@@ -137,11 +140,11 @@ coverage: ## Tests unitarios con informe de cobertura
 	npm run test:coverage
 
 .PHONY: e2e
-e2e: infra ## E2E contra un dev server que arranca Playwright
+e2e: db ## E2E contra un dev server que arranca Playwright
 	npm run test:e2e
 
 .PHONY: e2e-ui
-e2e-ui: infra ## E2E en el modo interactivo de Playwright
+e2e-ui: db ## E2E en el modo interactivo de Playwright
 	npm run test:e2e:ui
 
 .PHONY: e2e-docker

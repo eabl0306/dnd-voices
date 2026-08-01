@@ -127,6 +127,10 @@ export default function CharactersPage() {
             setEditing(undefined);
             await reload();
           }}
+          onDeleted={async () => {
+            setEditing(undefined);
+            await reload();
+          }}
         />
       )}
 

@@ -30,9 +30,9 @@ test.describe("campañas", () => {
     await expect(page.getByText("Puerto gris.")).toBeVisible();
     await expect(page.getByRole("heading", { name: "Requiere tu atención" })).toBeVisible();
 
-    // Toda campaña nace con narrador: sin él la primera escena no tendría a
-    // quién atribuir la narración. El contador vive en la barra lateral.
-    await expect(page.getByRole("link", { name: /Personajes/ })).toContainText("1");
+    // La campaña nace sin reparto: el DM decide a quién da de alta y con qué
+    // estrategia de voz.
+    await expect(page.getByRole("link", { name: /Personajes/ })).toContainText("0");
   });
 
   test("añadir un personaje desde su modal", async ({ page, context, account }) => {
@@ -42,14 +42,34 @@ test.describe("campañas", () => {
       .then((response) => response.json() as Promise<{ id: string }>);
 
     await page.goto(`/campaigns/${campaign.id}/characters`);
-    await expect(page.getByRole("heading", { name: "Narrador" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Aún no hay reparto" })).toBeVisible();
 
-    await page.getByRole("button", { name: "Nuevo personaje" }).first().click();
+    await page.getByRole("button", { name: "Añadir el primer personaje" }).click();
     await page.getByLabel("Nombre").fill("Thorin");
     await page.getByLabel("Descripción física y vocal").fill("Enano gruñón de voz grave.");
     await page.getByRole("button", { name: "Añadir personaje" }).click();
 
     await expect(page.getByRole("heading", { name: "Thorin" })).toBeVisible();
+  });
+
+  test("sin voces registradas sólo se ofrece generar una", async ({ page, context, account }) => {
+    void account;
+    const campaign = await context.request
+      .post("/api/campaigns", { data: { name: "Campaña recién nacida" } })
+      .then((response) => response.json() as Promise<{ id: string }>);
+
+    await page.goto(`/campaigns/${campaign.id}/characters`);
+    await page.getByRole("button", { name: "Añadir el primer personaje" }).click();
+
+    // Reutilizar del pool o elegir de la biblioteca sólo produciría un casting
+    // fallido mientras no exista ninguna voz.
+    await expect(page.getByRole("radio", { name: /Generar voz nueva/ })).toBeEnabled();
+    await expect(page.getByRole("radio", { name: /Voz del pool/ })).toBeDisabled();
+    await expect(page.getByRole("radio", { name: /Elegir voz concreta/ })).toBeDisabled();
+    await expect(page.getByRole("radio", { name: /Generar voz nueva/ })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
   });
 
   test("elegir voz concreta exige seleccionar una", async ({ page, context, account }) => {
@@ -59,13 +79,20 @@ test.describe("campañas", () => {
       .then((response) => response.json() as Promise<{ id: string }>);
 
     await page.goto(`/campaigns/${campaign.id}/characters`);
-    await page.getByRole("button", { name: "Nuevo personaje" }).first().click();
+
+    // Con una voz en la biblioteca, elegir a mano ya es posible pero exige
+    // seleccionar cuál.
+    await context.request.post("/api/voices", {
+      data: { name: "Voz suelta", externalId: `elegir-${campaign.id}` },
+    });
+    await page.reload();
+    await page.getByRole("button", { name: "Añadir el primer personaje" }).click();
     await page.getByLabel("Nombre").fill("Grum");
     await page.getByRole("radio", { name: /Elegir voz concreta/ }).click();
 
-    // La biblioteca está vacía: no se puede fijar una voz que no existe.
-    await expect(page.getByText("Todavía no hay voces que elegir.")).toBeVisible();
     await expect(page.getByRole("button", { name: "Añadir personaje" })).toBeDisabled();
+    await page.getByRole("option", { name: /Voz suelta/ }).click();
+    await expect(page.getByRole("button", { name: "Añadir personaje" })).toBeEnabled();
   });
 
   test("crear una escena la abre en el editor", async ({ page, context, account }) => {
