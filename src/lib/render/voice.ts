@@ -70,6 +70,22 @@ async function castFromPool(context: Context): Promise<Assignment> {
     );
   }
 
+  // Quién usa ya cada voz en esta campaña. Sin esto, cada personaje se castea
+  // por su cuenta y varios acaban con la misma voz, que en una escena donde
+  // ambos hablan los vuelve indistinguibles.
+  const assigned = await db.character.findMany({
+    where: { campaignId: context.campaignId, voiceRefId: { not: null }, id: { not: context.characterId } },
+    select: { name: true, voiceRefId: true },
+  });
+  const takenBy = new Map<string, string[]>();
+  for (const character of assigned) {
+    if (!character.voiceRefId) continue;
+    takenBy.set(character.voiceRefId, [
+      ...(takenBy.get(character.voiceRefId) ?? []),
+      character.name,
+    ]);
+  }
+
   const pick = await pickFromPool({
     ...context,
     pool: pool.map((voice) => ({
@@ -77,6 +93,7 @@ async function castFromPool(context: Context): Promise<Assignment> {
       name: voice.name,
       description: voice.generated ? "generada por la IA en esta campaña" : "",
       labels: Object.fromEntries(voice.tags.map((tag, index) => [`tag${index}`, tag])),
+      takenBy: takenBy.get(voice.id) ?? [],
     })),
   });
 

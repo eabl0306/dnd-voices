@@ -14,6 +14,8 @@ export type PoolVoice = {
   name: string;
   description: string;
   labels: Record<string, string>;
+  /** Personajes de la campaña que ya la usan. Vacío si está libre. */
+  takenBy: string[];
 };
 
 export type RosterEntry = {

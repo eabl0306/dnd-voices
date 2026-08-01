@@ -17,7 +17,9 @@ Devuelve un brief para generar una voz nueva desde cero. "voiceDescription" va e
 
 export const POOL_INSTRUCTIONS = `${CASTING_SHARED}
 
-Elige una voz del catálogo disponible y ajústala al personaje. "voiceId" debe ser uno de los identificadores del catálogo, copiado literalmente. Si ninguna encaja bien, elige la menos mala y dilo en "rationale": la interfaz ofrecerá diseñar una voz propia.`;
+Elige una voz del catálogo disponible y ajústala al personaje. "voiceId" debe ser uno de los identificadores del catálogo, copiado literalmente. Si ninguna encaja bien, elige la menos mala y dilo en "rationale": la interfaz ofrecerá diseñar una voz propia.
+
+Prioriza una voz libre aunque encaje algo peor. Dos personajes que suenan igual son indistinguibles en una escena donde ambos hablan, y eso arruina el reparto más que un timbre imperfecto. Reutiliza una ya ocupada sólo si no queda ninguna libre, o si la libre que queda es claramente inadecuada (género vocal o edad muy distintos); en ese caso dilo en "rationale" y separa los ajustes de la otra asignación todo lo que puedas.`;
 
 export function renderCharacterPrompt(
   character: CharacterBrief,
@@ -44,6 +46,9 @@ export function renderCataloguePrompt(pool: readonly PoolVoice[]): string {
     const parts = [voice.voiceId, voice.name];
     if (labels) parts.push(labels);
     if (voice.description) parts.push(voice.description);
+    // Marcar las ocupadas es lo que permite repartir en vez de elegir siempre
+    // la que mejor encaja en abstracto.
+    parts.push(voice.takenBy.length > 0 ? `YA LA USA: ${voice.takenBy.join(", ")}` : "libre");
     return `- ${parts.join(" | ")}`;
   });
 

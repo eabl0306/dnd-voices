@@ -118,6 +118,7 @@ describe("renderCataloguePrompt", () => {
     name: "Rachel",
     description: "",
     labels: {},
+    takenBy: [],
     ...patch,
   });
 
@@ -132,6 +133,19 @@ describe("renderCataloguePrompt", () => {
 
   it("omite los campos vacíos sin dejar separadores sueltos", () => {
     expect(renderCataloguePrompt([voice({})])).not.toContain("| |");
+  });
+
+  it("marca las voces libres y las ya ocupadas", () => {
+    // Es lo que permite repartir en vez de dar a todos la que mejor encaja.
+    expect(renderCataloguePrompt([voice({})])).toContain("libre");
+    expect(renderCataloguePrompt([voice({ takenBy: ["Narrador"] })])).toContain(
+      "YA LA USA: Narrador",
+    );
+  });
+
+  it("nombra a todos los que comparten una voz", () => {
+    const prompt = renderCataloguePrompt([voice({ takenBy: ["Kaz", "Perrin"] })]);
+    expect(prompt).toContain("YA LA USA: Kaz, Perrin");
   });
 });
 
