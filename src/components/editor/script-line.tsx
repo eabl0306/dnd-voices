@@ -1,13 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import { LineText } from "@/components/editor/line-text";
 import { GlyphBox } from "@/components/ui";
 import { type CharacterDto, isLineDubious, type LineDto } from "@/lib/dto";
 import { formatDuration } from "@/lib/format";
 import { characterColor, GLYPH } from "@/lib/tone";
 
 /** Qué puede corregir el DM de una línea sin reanalizar la escena. */
-export type LineAudioPatch = { pauseAfter?: number; fadeOutMs?: number };
+export type LineAudioPatch = { pauseAfter?: number; fadeOutMs?: number; text?: string };
 
 /**
  * Campo numérico en ms que confirma al salir o con Enter.
@@ -93,20 +94,25 @@ export function ScriptLine({
   characters,
   tintReview,
   playing,
+  busy,
   onReassign,
   onTogglePlay,
   onDelete,
   onPatchAudio,
+  onRegenerate,
 }: {
   line: LineDto;
   characters: readonly CharacterDto[];
   tintReview: boolean;
   /** Si el clip de esta línea está sonando ahora mismo. */
   playing: boolean;
+  /** Hay una regeneración en curso: evita encadenar varias sin querer. */
+  busy: boolean;
   onReassign: (lineId: string, characterId: string) => void;
   onTogglePlay: (lineId: string) => void;
   onDelete: (lineId: string) => void;
   onPatchAudio: (lineId: string, patch: LineAudioPatch) => void;
+  onRegenerate: (lineId: string) => void;
 }) {
   const dubious = isLineDubious(line);
   const speaker = characters.find((character) => character.id === line.characterId);
@@ -172,21 +178,19 @@ export function ScriptLine({
             {line.delivery}
           </span>
         )}
-        <span
-          className={`text-[14.5px] leading-[1.6] text-pretty ${
-            isNarration ? "font-serif italic text-text2" : "font-sans text-text"
-          }`}
-          style={
-            dubious
-              ? {
-                  textDecoration: "underline dashed var(--warn-line)",
-                  textUnderlineOffset: 4,
-                }
-              : undefined
-          }
-        >
-          {line.text}
-        </span>
+        <LineText
+          value={line.text}
+          isNarration={isNarration}
+          dubious={dubious}
+          label={`Texto de la intervención ${ordinal}`}
+          onCommit={(text) => onPatchAudio(line.id, { text })}
+        />
+        {line.audioStale && (
+          <span className="mt-[5px] flex items-center gap-[5px] font-mono text-[10.5px] tracking-[0.05em] uppercase text-warn">
+            <GlyphBox glyph={GLYPH.review} size={13} />
+            Audio desfasado
+          </span>
+        )}
       </div>
 
       <div className="flex flex-none flex-col items-end gap-[6px]">
@@ -197,24 +201,48 @@ export function ScriptLine({
             </span>
           )}
           {line.hasAudio && (
-            <button
-              type="button"
-              onClick={() => onTogglePlay(line.id)}
-              aria-label={
-                playing
-                  ? `Pausar la intervención ${ordinal}`
-                  : `Escuchar la intervención ${ordinal}`
-              }
-              aria-pressed={playing}
-              className={`grid h-[24px] w-[24px] place-items-center rounded-full border text-[10px] transition ${
-                playing
-                  ? "border-accent bg-accent-soft text-accent"
-                  : "border-line text-text2 hover:border-accent hover:text-accent"
-              }`}
-            >
-              {playing ? GLYPH.pause : GLYPH.play}
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => onTogglePlay(line.id)}
+                aria-label={
+                  playing
+                    ? `Pausar la intervención ${ordinal}`
+                    : `Escuchar la intervención ${ordinal}`
+                }
+                aria-pressed={playing}
+                className={`grid h-[24px] w-[24px] place-items-center rounded-full border text-[10px] transition ${
+                  playing
+                    ? "border-accent bg-accent-soft text-accent"
+                    : "border-line text-text2 hover:border-accent hover:text-accent"
+                }`}
+              >
+                {playing ? GLYPH.pause : GLYPH.play}
+              </button>
+              <a
+                href={`/api/lines/${line.id}/audio`}
+                download
+                aria-label={`Descargar la intervención ${ordinal}`}
+                className="grid h-[24px] w-[24px] place-items-center rounded-[6px] border border-line text-[11px] text-text2 transition hover:border-accent hover:text-accent"
+              >
+                {GLYPH.down}
+              </a>
+            </>
           )}
+          <button
+            type="button"
+            onClick={() => onRegenerate(line.id)}
+            disabled={busy}
+            aria-label={`Regenerar el audio de la intervención ${ordinal}`}
+            title="Regenera sólo este clip, sin montar la escena entera"
+            className={`grid h-[24px] w-[24px] place-items-center rounded-[6px] border text-[11px] transition disabled:opacity-45 ${
+              line.audioStale || !line.hasAudio
+                ? "border-warn text-warn hover:bg-warn-soft"
+                : "border-line text-text2 hover:border-accent hover:text-accent"
+            }`}
+          >
+            {GLYPH.assigning}
+          </button>
           <button
             type="button"
             onClick={() => onDelete(line.id)}

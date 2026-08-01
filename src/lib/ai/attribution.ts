@@ -13,12 +13,23 @@ export type AttributeArgs = {
   setting: string;
   roster: readonly RosterEntry[];
   rawText: string;
+  /**
+   * Final del guion ya analizado, cuando `rawText` es sólo la continuación.
+   * Sin él, la primera intervención de la cola se atribuye a ciegas: no hay
+   * forma de saber quién acababa de hablar.
+   */
+  precedingText?: string | undefined;
 };
 
 export type AttributeResult = {
   result: Attribution;
   usage: Anthropic.Usage;
 };
+
+function userContent(args: AttributeArgs): string {
+  if (!args.precedingText?.trim()) return args.rawText;
+  return `<contexto-previo>\n${args.precedingText.trim()}\n</contexto-previo>\n\n${args.rawText}`;
+}
 
 /**
  * Convierte el texto crudo de una escena en intervenciones atribuidas.
@@ -45,7 +56,7 @@ export async function attributeSpeakers(args: AttributeArgs): Promise<AttributeR
         cache_control: { type: "ephemeral" },
       },
     ],
-    messages: [{ role: "user", content: args.rawText }],
+    messages: [{ role: "user", content: userContent(args) }],
   });
 
   if (!response.parsed_output) {

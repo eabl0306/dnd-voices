@@ -114,6 +114,8 @@ export type LineDto = {
   durationMs: number | null;
   /** Si hay clip en disco que escuchar por separado. */
   hasAudio: boolean;
+  /** El clip existe pero ya no corresponde al texto o a la voz de ahora. */
+  audioStale: boolean;
 };
 
 export type RenderDto = {

@@ -34,6 +34,10 @@ Refleja lo segura que es la atribución, no la calidad del texto:
 
 Un umbral en la interfaz marca las intervenciones dudosas para revisión manual, así que una confianza honesta y baja es mucho más útil que un 1.0 optimista.
 
+## Continuación de un guion ya analizado
+
+A veces el mensaje empieza con un bloque <contexto-previo>…</contexto-previo>. Ese texto YA está analizado y va sólo para que sepas quién venía hablando y de qué. No lo dividas ni lo devuelvas: analiza únicamente lo que viene después del bloque.
+
 ## delivery
 
 Una indicación breve de interpretación en el idioma de la campaña, extraída SOLO de lo que el texto sugiere: "susurrando", "gritando por encima del ruido", "con sorna". Si el texto no sugiere nada, deja la cadena vacía. No inventes emociones para rellenar.`;

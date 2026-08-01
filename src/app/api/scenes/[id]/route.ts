@@ -3,6 +3,7 @@ import { z } from "zod";
 import { handler, ownedScene, requireUser } from "@/lib/api";
 import { db } from "@/lib/db";
 import type { SceneDetail } from "@/lib/dto";
+import { isAudioStale } from "@/lib/render/line-clip";
 import { compact } from "@/lib/types";
 
 type Params = { params: Promise<{ id: string }> };
@@ -21,9 +22,19 @@ export function GET(_request: NextRequest, { params }: Params) {
     const scene = await db.scene.findUniqueOrThrow({
       where: { id },
       include: {
+        campaign: { select: { language: true } },
         lines: {
           orderBy: { order: "asc" },
-          include: { character: { select: { isNarrator: true } } },
+          include: {
+            character: {
+              select: {
+                isNarrator: true,
+                voiceId: true,
+                voiceSettings: true,
+                voiceRef: { select: { model: true } },
+              },
+            },
+          },
         },
         renders: { orderBy: { createdAt: "desc" }, take: 5 },
       },
@@ -48,6 +59,9 @@ export function GET(_request: NextRequest, { params }: Params) {
         fadeOutMs: line.fadeOutMs,
         durationMs: line.durationMs,
         hasAudio: line.audioPath !== null,
+        // Marca las líneas cuyo clip ya no corresponde a su texto o a su voz:
+        // son exactamente las que se volverán a facturar en el próximo render.
+        audioStale: isAudioStale({ ...line, languageCode: scene.campaign.language }),
       })),
       renders: scene.renders.map((render) => ({
         id: render.id,

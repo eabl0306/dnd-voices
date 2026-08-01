@@ -192,6 +192,9 @@ model Scene {
   title      String
   /// Texto crudo tal cual lo pega el DM, antes de identificar hablantes.
   rawText    String      @default("")
+  /// El rawText que se analizó la última vez. Si el actual empieza por él, sólo
+  /// hay que analizar la cola nueva en vez de rehacer el guion entero.
+  parsedText String      @default("")
   status     SceneStatus @default(DRAFT)
   error      String?
   createdAt  DateTime    @default(now())

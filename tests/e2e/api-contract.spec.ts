@@ -14,19 +14,25 @@ test.describe("contrato de la API", () => {
       expect(response.status(), path).toBe(401);
     }
 
-    const deletion = await request.delete("/api/lines/x");
-    expect(deletion.status()).toBe(401);
+    for (const response of [
+      await request.delete("/api/lines/x"),
+      await request.post("/api/lines/x/audio"),
+    ]) {
+      expect(response.status()).toBe(401);
+    }
   });
 
   test("una línea ajena o inexistente devuelve 404, también en su audio", async ({ request }) => {
     await signUpViaApi(request, uniqueAccount("lines"));
 
     // 404 y no 403: un 403 confirmaría que ese id existe.
-    const audio = await request.get("/api/lines/inexistente/audio");
-    expect(audio.status()).toBe(404);
-
-    const deletion = await request.delete("/api/lines/inexistente");
-    expect(deletion.status()).toBe(404);
+    for (const response of [
+      await request.get("/api/lines/inexistente/audio"),
+      await request.post("/api/lines/inexistente/audio"),
+      await request.delete("/api/lines/inexistente"),
+    ]) {
+      expect(response.status()).toBe(404);
+    }
   });
 
   test("un usuario no puede leer la campaña de otro", async ({ browser }) => {

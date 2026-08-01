@@ -98,12 +98,21 @@ export default function ScenePage() {
       await Promise.all([refresh(), refreshNav()]);
     });
 
-  const onPatchAudio = (lineId: string, patch: { pauseAfter?: number; fadeOutMs?: number }) =>
+  const onPatchAudio = (
+    lineId: string,
+    patch: { pauseAfter?: number; fadeOutMs?: number; text?: string },
+  ) =>
     void run("line-audio", async () => {
       await api(`/api/scenes/${id}/lines`, {
         method: "PATCH",
         body: JSON.stringify({ lines: [{ id: lineId, ...patch }] }),
       });
+      await refresh();
+    });
+
+  const onRegenerateLine = (lineId: string) =>
+    void run("line-render", async () => {
+      await api(`/api/lines/${lineId}/audio`, { method: "POST" });
       await refresh();
     });
 
@@ -161,6 +170,8 @@ export default function ScenePage() {
             onReassign={onReassign}
             onDeleteLine={onDeleteLine}
             onPatchAudio={onPatchAudio}
+            onRegenerate={onRegenerateLine}
+            busy={pending === "line-render"}
           />
         )}
 

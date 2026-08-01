@@ -14,12 +14,16 @@ export function ScriptPanel({
   onReassign,
   onDeleteLine,
   onPatchAudio,
+  onRegenerate,
+  busy,
 }: {
   lines: readonly LineDto[];
   characters: readonly CharacterDto[];
   onReassign: (lineId: string, characterId: string) => void;
   onDeleteLine: (lineId: string) => void;
   onPatchAudio: (lineId: string, patch: LineAudioPatch) => void;
+  onRegenerate: (lineId: string) => void;
+  busy: boolean;
 }) {
   const [onlyReview, setOnlyReview] = useState(false);
   const [tintReview, setTintReview] = useState(true);
@@ -168,10 +172,12 @@ export function ScriptPanel({
             characters={characters}
             tintReview={tintReview}
             playing={playingId === line.id}
+            busy={busy}
             onReassign={onReassign}
             onTogglePlay={togglePlay}
             onDelete={onDeleteLine}
             onPatchAudio={onPatchAudio}
+            onRegenerate={onRegenerate}
           />
         ))}
         {visible.length === 0 && (
