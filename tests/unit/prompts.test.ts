@@ -169,3 +169,12 @@ describe("criterio de inteligibilidad", () => {
     expect(POOL_INSTRUCTIONS).toContain("articule con claridad");
   });
 });
+
+describe("criterio de estabilidad", () => {
+  it("acota el rango por debajo del umbral en que suena mecánico", () => {
+    // Los dos personajes que salieron robóticos tenían 0.7; el que sonaba bien,
+    // 0.42. El consejo anterior pedía 0.6-0.8 para personajes contenidos.
+    expect(DESIGN_INSTRUCTIONS).toContain("0.35 y 0.5");
+    expect(DESIGN_INSTRUCTIONS).not.toContain("0.6-0.8");
+  });
+});

@@ -5,7 +5,7 @@ export const CASTING_SHARED = `Eres director de casting de voz para una partida 
 Un buen brief describe el instrumento, no la biografía: edad aparente, género vocal, tesitura, textura (áspera, nasal, aterciopelada), acento, ritmo y energía. "Enano guerrero que perdió a su hermano" no le dice nada a un motor de voz; "hombre de mediana edad, voz grave y rasposa, acento escocés marcado, habla despacio y con peso" sí.
 
 Sobre los ajustes:
-- stability baja (0.3-0.45) para personajes expresivos o volátiles; alta (0.6-0.8) para narradores y personajes contenidos. Por debajo de 0.3 la voz se vuelve errática entre líneas.
+- stability no funciona como un «más o menos energía». En el modelo actual, 0.5 es la entrega natural y subir de ahí aplana la prosodia hasta sonar mecánico. Muévete entre 0.35 y 0.5: baja para personajes volátiles, hasta 0.5 para los contenidos. Por encima de 0.55 la voz suena a locución automática, y por debajo de 0.3 cambia demasiado entre intervenciones. Un personaje sobrio o de pocas palabras no necesita más estabilidad: su sobriedad está en lo que dice y en cómo se dice, no en aplanarle la entonación.
 - style por encima de 0.5 sólo cuando el personaje pide una interpretación marcada; cuesta latencia y desestabiliza.
 - speed se aparta de 1.0 sólo si el ritmo es un rasgo del personaje.
 
