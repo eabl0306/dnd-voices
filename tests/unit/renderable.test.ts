@@ -4,12 +4,14 @@ import { assertRenderable, type RenderableLine } from "@/lib/render/scene";
 const line = (character: RenderableLine["character"]): RenderableLine => ({
   id: "l1",
   text: "Una frase.",
+  delivery: null,
   pauseAfter: 300,
   character,
 });
 
-const withVoice = { name: "Vex", voiceId: "voice-1", voiceSettings: null };
-const withoutVoice = { name: "Grum", voiceId: null, voiceSettings: null };
+const voiceRef = { model: "eleven_v3" };
+const withVoice = { name: "Vex", voiceId: "voice-1", voiceSettings: null, voiceRef };
+const withoutVoice = { name: "Grum", voiceId: null, voiceSettings: null, voiceRef: null };
 
 describe("assertRenderable", () => {
   it("acepta una escena con todo asignado", () => {

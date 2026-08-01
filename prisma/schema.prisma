@@ -124,7 +124,9 @@ model Voice {
   provider   VoiceProvider @default(ELEVENLABS)
   /// voice_id en el proveedor.
   externalId String
-  model      String        @default("eleven_multilingual_v2")
+  /// Modelo con el que se sintetiza esta voz. v3 entiende indicaciones de
+  /// interpretación; v2 y turbo salen más baratos para textos largos.
+  model      String        @default("eleven_v3")
   /// Descriptores cortos que se muestran bajo el nombre ("barítono", "seco").
   tags       String[]      @default([])
   /// Null = biblioteca de la cuenta. Con valor = sólo visible en esa campaña.

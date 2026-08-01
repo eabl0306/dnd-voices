@@ -1,11 +1,20 @@
 import { cacheKeyFor, clipKey } from "@/lib/render/cache-key";
 import * as storage from "@/lib/storage";
-import { OUTPUT_FORMAT, TTS_MODEL, synthesize } from "@/lib/tts/elevenlabs";
+import {
+  acceptsNeighbourContext,
+  OUTPUT_FORMAT,
+  synthesize,
+  withDelivery,
+} from "@/lib/tts/elevenlabs";
 import type { VoiceSettings } from "@/lib/types";
 
 export type LineToSynthesize = {
   text: string;
+  /** Indicación de interpretación; sólo la usan los modelos que la entienden. */
+  delivery: string | null;
   voiceId: string;
+  /** Modelo de la voz de este personaje, no una constante global. */
+  model: string;
   settings: VoiceSettings | null;
   languageCode: string;
   /** Texto de las líneas contiguas: da continuidad prosódica sin coste extra. */
@@ -32,12 +41,16 @@ export type SynthesizedClip = {
  * al tocar una línea, y el coste no compensa la mejora.
  */
 export async function synthesizeLine(line: LineToSynthesize): Promise<SynthesizedClip> {
+  // El texto efectivo lleva ya la indicación de interpretación, así que entra
+  // en la clave de caché sin tener que acordarse de añadirla por separado.
+  const text = withDelivery(line.text, line.delivery, line.model);
+
   const cacheKey = cacheKeyFor({
-    ttsModel: TTS_MODEL,
+    ttsModel: line.model,
     outputFormat: OUTPUT_FORMAT,
     voiceId: line.voiceId,
     languageCode: line.languageCode,
-    text: line.text,
+    text,
     settings: line.settings,
   });
   const audioKey = clipKey(cacheKey);
@@ -46,15 +59,17 @@ export async function synthesizeLine(line: LineToSynthesize): Promise<Synthesize
     return { cacheKey, audioKey, billed: false, charsBilled: 0 };
   }
 
+  const neighbours = acceptsNeighbourContext(line.model);
   const audio = await synthesize({
     voiceId: line.voiceId,
-    text: line.text,
+    model: line.model,
+    text,
     settings: line.settings,
     languageCode: line.languageCode,
-    previousText: line.previousText,
-    nextText: line.nextText,
+    previousText: neighbours ? line.previousText : undefined,
+    nextText: neighbours ? line.nextText : undefined,
   });
   await storage.write(audioKey, audio);
 
-  return { cacheKey, audioKey, billed: true, charsBilled: line.text.length };
+  return { cacheKey, audioKey, billed: true, charsBilled: text.length };
 }

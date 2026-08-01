@@ -8,8 +8,10 @@ const storageMock = vi.hoisted(() => ({
 
 const ttsMock = vi.hoisted(() => ({
   synthesize: vi.fn<() => Promise<Buffer>>(),
-  TTS_MODEL: "eleven_multilingual_v2",
   OUTPUT_FORMAT: "mp3_44100_192",
+  acceptsNeighbourContext: (model: string) => !model.startsWith("eleven_v3"),
+  withDelivery: (text: string, delivery: string | null, model: string) =>
+    delivery && model.startsWith("eleven_v3") ? `[${delivery}] ${text}` : text,
 }));
 
 vi.mock("@/lib/storage", () => storageMock);
@@ -19,7 +21,9 @@ const { synthesizeLine } = await import("@/lib/render/synthesize-line");
 
 const LINE = {
   text: "¡Ya basta de esperar!",
+  delivery: null,
   voiceId: "voice-abc",
+  model: "eleven_multilingual_v2",
   settings: null,
   languageCode: "es",
 };
@@ -78,6 +82,59 @@ describe("synthesizeLine", () => {
     expect(ttsMock.synthesize).toHaveBeenCalledWith(
       expect.objectContaining({ previousText: "antes", nextText: "después" }),
     );
+  });
+
+  it("no manda el contexto vecino a v3, que lo rechaza con un 400", async () => {
+    storageMock.exists.mockResolvedValue(false);
+
+    await synthesizeLine({
+      ...LINE,
+      model: "eleven_v3",
+      previousText: "antes",
+      nextText: "después",
+    });
+
+    expect(ttsMock.synthesize).toHaveBeenCalledWith(
+      expect.objectContaining({ previousText: undefined, nextText: undefined }),
+    );
+  });
+
+  it("antepone la indicación de interpretación en los modelos que la entienden", async () => {
+    storageMock.exists.mockResolvedValue(false);
+
+    await synthesizeLine({ ...LINE, model: "eleven_v3", delivery: "susurrando" });
+
+    expect(ttsMock.synthesize).toHaveBeenCalledWith(
+      expect.objectContaining({ text: "[susurrando] ¡Ya basta de esperar!" }),
+    );
+  });
+
+  it("no la antepone en un modelo que la leería en voz alta", async () => {
+    storageMock.exists.mockResolvedValue(false);
+
+    await synthesizeLine({ ...LINE, delivery: "susurrando" });
+
+    expect(ttsMock.synthesize).toHaveBeenCalledWith(
+      expect.objectContaining({ text: "¡Ya basta de esperar!" }),
+    );
+  });
+
+  it("la indicación cambia el clip, así que cambia la clave de caché", async () => {
+    storageMock.exists.mockResolvedValue(true);
+
+    const sin = await synthesizeLine({ ...LINE, model: "eleven_v3" });
+    const con = await synthesizeLine({ ...LINE, model: "eleven_v3", delivery: "gritando" });
+
+    expect(sin.cacheKey).not.toBe(con.cacheKey);
+  });
+
+  it("cambia de clip cuando cambia el modelo de la voz", async () => {
+    storageMock.exists.mockResolvedValue(true);
+
+    const v2 = await synthesizeLine(LINE);
+    const v3 = await synthesizeLine({ ...LINE, model: "eleven_v3" });
+
+    expect(v2.cacheKey).not.toBe(v3.cacheKey);
   });
 
   it("no mete el contexto vecino en la clave de caché", async () => {

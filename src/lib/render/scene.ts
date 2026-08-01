@@ -3,14 +3,22 @@ import { durationMs } from "@/lib/audio/ffmpeg";
 import { db } from "@/lib/db";
 import { messageOf } from "@/lib/render/parse";
 import { synthesizeLine } from "@/lib/render/synthesize-line";
+import { DEFAULT_TTS_MODEL } from "@/lib/tts/elevenlabs";
 import * as storage from "@/lib/storage";
 import type { VoiceSettings } from "@/lib/types";
 
 export type RenderableLine = {
   id: string;
   text: string;
+  delivery: string | null;
   pauseAfter: number;
-  character: { name: string; voiceId: string | null; voiceSettings: unknown } | null;
+  character: {
+    name: string;
+    voiceId: string | null;
+    voiceSettings: unknown;
+    /** El modelo vive en la voz, no en una constante: cada una puede llevar el suyo. */
+    voiceRef: { model: string } | null;
+  } | null;
 };
 
 export type RenderSummary = {
@@ -66,7 +74,9 @@ async function synthesizeAll(
 
     const clip = await synthesizeLine({
       text: line.text,
+      delivery: line.delivery,
       voiceId: character.voiceId!,
+      model: character.voiceRef?.model ?? DEFAULT_TTS_MODEL,
       settings: asSettings(character.voiceSettings),
       languageCode,
       previousText: lines[index - 1]?.text,
@@ -109,29 +119,36 @@ export async function renderScene(renderId: string): Promise<RenderSummary> {
       scene: {
         include: {
           campaign: true,
-          lines: { orderBy: { order: "asc" }, include: { character: true } },
+          lines: {
+            orderBy: { order: "asc" },
+            include: { character: { include: { voiceRef: { select: { model: true } } } } },
+          },
         },
       },
     },
   });
 
   const { scene } = render;
-  assertRenderable(scene.lines);
-
-  await db.render.update({
-    where: { id: renderId },
-    data: {
-      status: "RUNNING",
-      progress: 0,
-      cacheHits: 0,
-      charsBilled: 0,
-      totalLines: scene.lines.length,
-      error: null,
-    },
-  });
-  await db.scene.update({ where: { id: scene.id }, data: { status: "RENDERING" } });
 
   try {
+    // Dentro del try: si la precondición falla fuera, el render se queda en
+    // QUEUED para siempre y la ruta devuelve ese mismo registro al reintentar,
+    // así que «Generar audio» dejaría de hacer nada sin decir por qué.
+    assertRenderable(scene.lines);
+
+    await db.render.update({
+      where: { id: renderId },
+      data: {
+        status: "RUNNING",
+        progress: 0,
+        cacheHits: 0,
+        charsBilled: 0,
+        totalLines: scene.lines.length,
+        error: null,
+      },
+    });
+    await db.scene.update({ where: { id: scene.id }, data: { status: "RENDERING" } });
+
     const { clips, cacheHits, charsBilled } = await synthesizeAll(
       renderId,
       scene.lines,

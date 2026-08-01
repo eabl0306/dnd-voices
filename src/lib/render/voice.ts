@@ -3,7 +3,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { listAssignableVoices } from "@/lib/queries/voices";
 import { messageOf } from "@/lib/render/parse";
-import { designVoicePreviews, saveDesignedVoice, TTS_MODEL } from "@/lib/tts/elevenlabs";
+import { DEFAULT_TTS_MODEL, designVoicePreviews, saveDesignedVoice } from "@/lib/tts/elevenlabs";
 import type { VoiceSettings } from "@/lib/types";
 
 type Assignment = {
@@ -47,7 +47,7 @@ async function designVoice(context: Context): Promise<Assignment> {
       name: context.character.name,
       provider: "ELEVENLABS",
       externalId,
-      model: TTS_MODEL,
+      model: DEFAULT_TTS_MODEL,
       campaignId: context.campaignId,
       generated: true,
     },

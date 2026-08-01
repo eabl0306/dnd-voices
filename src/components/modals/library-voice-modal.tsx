@@ -6,7 +6,9 @@ import { useAction } from "@/hooks/use-action";
 import type { VoiceDto, VoiceProvider } from "@/lib/dto";
 import { api } from "@/lib/http";
 
-const MODELS = ["eleven_multilingual_v2", "eleven_turbo_v2_5", "eleven_v3"];
+// v3 primero: es el que se usa por defecto. Los otros dos existen para textos
+// largos donde importa más el coste que la interpretación (turbo cuesta la mitad).
+const MODELS = ["eleven_v3", "eleven_multilingual_v2", "eleven_turbo_v2_5"];
 
 /** Alta y edición de una voz del proveedor en la biblioteca de la cuenta. */
 export function LibraryVoiceModal({

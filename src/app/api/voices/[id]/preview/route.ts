@@ -45,6 +45,7 @@ export async function GET(_request: NextRequest, { params }: Params) {
         key,
         await synthesize({
           voiceId: voice.externalId,
+          model: voice.model,
           text: SAMPLE,
           settings: null,
           languageCode: "es",
