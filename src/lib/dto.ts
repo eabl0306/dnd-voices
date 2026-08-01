@@ -106,6 +106,14 @@ export type LineDto = {
   confidence: number;
   characterId: string | null;
   isNarration: boolean;
+  /** Silencio en ms que va después de esta intervención en el montaje. */
+  pauseAfter: number;
+  /** Decaimiento manual del final del clip, en ms. 0 = tal cual llega. */
+  fadeOutMs: number;
+  /** Duración del clip; null hasta el primer render que lo sintetiza. */
+  durationMs: number | null;
+  /** Si hay clip en disco que escuchar por separado. */
+  hasAudio: boolean;
 };
 
 export type RenderDto = {

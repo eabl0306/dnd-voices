@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "Line" ADD COLUMN     "fadeOutMs" INTEGER NOT NULL DEFAULT 0;

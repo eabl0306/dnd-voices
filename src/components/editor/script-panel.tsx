@@ -2,8 +2,8 @@
 
 import { useRef, useState } from "react";
 import { EditorPanel } from "@/components/editor/editor-panel";
-import { ScriptLine } from "@/components/editor/script-line";
-import { GlyphBox } from "@/components/ui";
+import { type LineAudioPatch, ScriptLine } from "@/components/editor/script-line";
+import { ErrorNote, GlyphBox } from "@/components/ui";
 import { type CharacterDto, isLineDubious, type LineDto } from "@/lib/dto";
 import { pluralize } from "@/lib/format";
 import { GLYPH } from "@/lib/tone";
@@ -12,15 +12,51 @@ export function ScriptPanel({
   lines,
   characters,
   onReassign,
+  onDeleteLine,
+  onPatchAudio,
 }: {
   lines: readonly LineDto[];
   characters: readonly CharacterDto[];
   onReassign: (lineId: string, characterId: string) => void;
+  onDeleteLine: (lineId: string) => void;
+  onPatchAudio: (lineId: string, patch: LineAudioPatch) => void;
 }) {
   const [onlyReview, setOnlyReview] = useState(false);
   const [tintReview, setTintReview] = useState(true);
   const scroller = useRef<HTMLDivElement>(null);
   const cursor = useRef(0);
+
+  // Un único <audio> para todo el guion: dos intervenciones sonando a la vez
+  // sólo confunden, y así pulsar otra corta la anterior sola.
+  const lineAudio = useRef<HTMLAudioElement>(null);
+  const [playingId, setPlayingId] = useState<string | null>(null);
+  const [playError, setPlayError] = useState("");
+
+  function togglePlay(lineId: string) {
+    const element = lineAudio.current;
+    if (!element) return;
+
+    if (playingId === lineId) {
+      element.pause();
+      setPlayingId(null);
+      return;
+    }
+
+    setPlayError("");
+    element.src = `/api/lines/${lineId}/audio`;
+    element.play().then(
+      () => setPlayingId(lineId),
+      (cause: unknown) => {
+        // Pulsar otra línea antes de que arranque ésta aborta el play anterior:
+        // no es un fallo, es exactamente lo que se ha pedido.
+        if (cause instanceof DOMException && cause.name === "AbortError") return;
+        setPlayingId(null);
+        setPlayError(
+          "No se pudo reproducir esa intervención. Si acabas de cambiarle la voz, genera la escena de nuevo.",
+        );
+      },
+    );
+  }
 
   const pending = lines.filter(isLineDubious);
   const narration = lines.filter((line) => line.isNarration).length;
@@ -98,6 +134,18 @@ export function ScriptPanel({
         )
       }
     >
+      <div className="px-[15px]">
+        <ErrorNote>{playError}</ErrorNote>
+      </div>
+
+      {/* biome-ignore lint/a11y/useMediaCaption: el audio ES la intervención que se lee al lado */}
+      <audio
+        ref={lineAudio}
+        className="hidden"
+        onEnded={() => setPlayingId(null)}
+        onPause={() => setPlayingId(null)}
+      />
+
       <div ref={scroller} className="max-h-[620px] overflow-y-auto">
         {visible.map((line) => (
           <ScriptLine
@@ -105,7 +153,11 @@ export function ScriptPanel({
             line={line}
             characters={characters}
             tintReview={tintReview}
+            playing={playingId === line.id}
             onReassign={onReassign}
+            onTogglePlay={togglePlay}
+            onDelete={onDeleteLine}
+            onPatchAudio={onPatchAudio}
           />
         ))}
         {visible.length === 0 && (

@@ -3,10 +3,30 @@ import { createCampaign, signUpViaApi, uniqueAccount } from "./fixtures";
 
 test.describe("contrato de la API", () => {
   test("sin sesión, todo devuelve 401", async ({ request }) => {
-    for (const path of ["/api/campaigns", "/api/scenes/x", "/api/renders/x"]) {
+    for (const path of [
+      "/api/campaigns",
+      "/api/scenes/x",
+      "/api/renders/x",
+      "/api/renders/x/audio",
+      "/api/lines/x/audio",
+    ]) {
       const response = await request.get(path);
       expect(response.status(), path).toBe(401);
     }
+
+    const deletion = await request.delete("/api/lines/x");
+    expect(deletion.status()).toBe(401);
+  });
+
+  test("una línea ajena o inexistente devuelve 404, también en su audio", async ({ request }) => {
+    await signUpViaApi(request, uniqueAccount("lines"));
+
+    // 404 y no 403: un 403 confirmaría que ese id existe.
+    const audio = await request.get("/api/lines/inexistente/audio");
+    expect(audio.status()).toBe(404);
+
+    const deletion = await request.delete("/api/lines/inexistente");
+    expect(deletion.status()).toBe(404);
   });
 
   test("un usuario no puede leer la campaña de otro", async ({ browser }) => {

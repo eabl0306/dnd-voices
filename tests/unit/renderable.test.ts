@@ -6,6 +6,7 @@ const line = (character: RenderableLine["character"]): RenderableLine => ({
   text: "Una frase.",
   delivery: null,
   pauseAfter: 300,
+  fadeOutMs: 0,
   character,
 });
 

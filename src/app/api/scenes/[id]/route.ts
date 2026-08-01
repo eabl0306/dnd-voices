@@ -44,6 +44,10 @@ export function GET(_request: NextRequest, { params }: Params) {
         characterId: line.characterId,
         // La narración se compone en serif itálica y sin selector de personaje.
         isNarration: line.character?.isNarrator ?? false,
+        pauseAfter: line.pauseAfter,
+        fadeOutMs: line.fadeOutMs,
+        durationMs: line.durationMs,
+        hasAudio: line.audioPath !== null,
       })),
       renders: scene.renders.map((render) => ({
         id: render.id,

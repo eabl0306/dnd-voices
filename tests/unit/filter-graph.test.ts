@@ -8,7 +8,11 @@ import {
   trimTrailingPause,
 } from "@/lib/audio/filter-graph";
 
-const clip = (path: string, pauseAfterMs = 0): Segment => ({ path, pauseAfterMs });
+const clip = (path: string, pauseAfterMs = 0, fadeOutMs = 0): Segment => ({
+  path,
+  pauseAfterMs,
+  fadeOutMs,
+});
 
 /** Los `-i` van intercalados con sus flags; sólo interesan los valores. */
 function inputValues(inputs: readonly string[]): string[] {
@@ -66,43 +70,30 @@ describe("buildFilterGraph", () => {
     expect(graph.outputLabel).toBe("[out]");
   });
 
-  it("recorta los silencios largos de cada clip, pero no las pausas generadas", () => {
-    // El proveedor deja hasta 1,4 s de silencio al final de un clip; la pausa
-    // que insertamos nosotros es justo la que queremos conservar.
-    const graph = buildFilterGraph([clip("/a.mp3", 300)]);
+  it("monta los clips tal cual llegan: sin recortes ni fundidos automáticos", () => {
+    // Hubo tres iteraciones de limpieza automática y en el A/B contra el
+    // montaje crudo, el crudo ganó siempre: cada regla global arreglaba unos
+    // clips y estropeaba otros.
+    const graph = buildFilterGraph([clip("/a.mp3", 300), clip("/b.mp3")]);
+    expect(graph.filterComplex).not.toContain("silenceremove");
+    expect(graph.filterComplex).not.toContain("afade");
+    expect(graph.filterComplex).not.toContain("areverse");
+  });
+
+  it("aplica el decaimiento manual de una línea sólo a su clip", () => {
+    const graph = buildFilterGraph([clip("/a.mp3", 0, 300), clip("/b.mp3")]);
     const chains = graph.filterComplex.split(";");
-    expect(chains[0]).toContain("silenceremove");
-    expect(chains[1]).not.toContain("silenceremove");
+
+    // El fundido va invertido: afade=t=in sobre el audio del revés es un
+    // fundido de salida sin tener que saber cuánto dura el clip.
+    expect(chains[0]).toContain("areverse,afade=t=in:d=0.300,areverse");
+    expect(chains[1]).not.toContain("afade");
   });
 
-  it("limpia los bordes del clip sin aplastar sus pausas internas", () => {
-    // Recortar todos los silencios por igual dejaba la escena sin aire tras un
-    // punto: la mediana de silencio del montaje caía a 0,26 s.
-    const [chain = ""] = buildFilterGraph([clip("/a.mp3")]).filterComplex.split(";");
-
-    // La cola sólo se puede recortar del revés: stop_periods=1 corta en el
-    // primer silencio interno y descarta el resto del clip.
-    expect(chain.match(/areverse/g)).toHaveLength(2);
-    expect(chain).toContain("start_periods=1");
-
-    // El techo de los huecos internos tiene que dejar pasar la pausa de un punto.
-    const internal = /stop_periods=-1:stop_duration=([\d.]+)/.exec(chain);
-    expect(Number(internal?.[1])).toBeGreaterThanOrEqual(0.6);
-  });
-
-  it("desvanece el final del clip sin llegar a tapar la última consonante", () => {
-    // 25 de 66 clips reales terminan en seco, a nivel de voz: el salto brusco a
-    // silencio suena a frase amputada aunque la palabra esté entera.
-    const [chain = ""] = buildFilterGraph([clip("/a.mp3")]).filterComplex.split(";");
-
-    // El fundido va dentro de la inversión, que es lo que lo convierte en salida.
-    const reversed = chain.slice(chain.indexOf("areverse"), chain.lastIndexOf("areverse"));
-    const fade = /afade=t=in:d=([\d.]+)/.exec(reversed);
-    expect(fade).not.toBeNull();
-
-    // Una `s` final dura 100-150 ms; pasarse de ahí la apagaría.
-    expect(Number(fade?.[1])).toBeGreaterThan(0.02);
-    expect(Number(fade?.[1])).toBeLessThan(0.08);
+  it("con decaimiento cero no añade ningún filtro al clip", () => {
+    const [chain = ""] = buildFilterGraph([clip("/a.mp3", 0, 0)]).filterComplex.split(";");
+    expect(chain).not.toContain("afade");
+    expect(chain).not.toContain("areverse");
   });
 
   it("mide en la primera pasada y aplica ganancia constante en la segunda", () => {

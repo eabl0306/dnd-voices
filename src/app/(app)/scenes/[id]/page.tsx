@@ -90,6 +90,24 @@ export default function ScenePage() {
       await Promise.all([refresh(), refreshNav()]);
     });
 
+  const onPatchAudio = (lineId: string, patch: { pauseAfter?: number; fadeOutMs?: number }) =>
+    void run("line-audio", async () => {
+      await api(`/api/scenes/${id}/lines`, {
+        method: "PATCH",
+        body: JSON.stringify({ lines: [{ id: lineId, ...patch }] }),
+      });
+      await refresh();
+    });
+
+  const onDeleteLine = (lineId: string) =>
+    void run("delete-line", async () => {
+      if (!confirm("¿Quitar esta intervención del guion? Desaparecerá del próximo audio.")) {
+        return;
+      }
+      await api(`/api/lines/${lineId}`, { method: "DELETE" });
+      await Promise.all([refresh(), refreshNav()]);
+    });
+
   if (!data) {
     return (
       <>
@@ -133,6 +151,8 @@ export default function ScenePage() {
             lines={scene.lines}
             characters={characters}
             onReassign={onReassign}
+            onDeleteLine={onDeleteLine}
+            onPatchAudio={onPatchAudio}
           />
         )}
 

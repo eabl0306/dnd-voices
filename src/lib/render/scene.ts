@@ -12,6 +12,7 @@ export type RenderableLine = {
   text: string;
   delivery: string | null;
   pauseAfter: number;
+  fadeOutMs: number;
   character: {
     name: string;
     voiceId: string | null;
@@ -86,7 +87,11 @@ async function synthesizeAll(
     if (clip.billed) charsBilled += clip.charsBilled;
     else cacheHits += 1;
 
-    clips.push({ audioKey: clip.audioKey, pauseAfterMs: line.pauseAfter });
+    clips.push({
+      audioKey: clip.audioKey,
+      pauseAfterMs: line.pauseAfter,
+      fadeOutMs: line.fadeOutMs,
+    });
 
     await db.line.update({
       where: { id: line.id },

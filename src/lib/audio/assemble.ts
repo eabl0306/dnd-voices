@@ -14,6 +14,8 @@ export type ClipSegment = {
   /** Clave de storage del clip mp3 devuelto por ElevenLabs. */
   audioKey: string;
   pauseAfterMs: number;
+  /** Decaimiento manual de la línea; 0 = sin fundido. */
+  fadeOutMs: number;
 };
 
 export type AssembleResult = { audioKey: string; durationMs: number };
@@ -51,6 +53,7 @@ export async function assembleScene(
   const segments: Segment[] = clips.map((clip) => ({
     path: storage.absolute(clip.audioKey),
     pauseAfterMs: clip.pauseAfterMs,
+    fadeOutMs: clip.fadeOutMs,
   }));
 
   const trimmed = trimTrailingPause(segments);

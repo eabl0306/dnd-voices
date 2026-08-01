@@ -55,6 +55,14 @@ export async function ownedRender(renderId: string, userId: string) {
   return render;
 }
 
+export async function ownedLine(lineId: string, userId: string) {
+  const line = await db.line.findFirst({
+    where: { id: lineId, scene: { campaign: { userId } } },
+  });
+  if (!line) throw new HttpError(404, "Intervención no encontrada.");
+  return line;
+}
+
 /** Convierte errores conocidos en respuestas JSON en vez de un 500 opaco. */
 export function handler<T>(fn: () => Promise<T>) {
   return fn().then(

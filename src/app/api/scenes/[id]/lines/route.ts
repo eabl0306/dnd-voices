@@ -15,6 +15,9 @@ const PatchLines = z.object({
         text: z.string().max(20_000).optional(),
         delivery: z.string().max(500).nullable().optional(),
         pauseAfter: z.number().int().min(0).max(10_000).optional(),
+        /// Decaimiento manual del final del clip. Más de 2 s ya no es un
+        /// fundido, es amputar la intervención.
+        fadeOutMs: z.number().int().min(0).max(2_000).optional(),
         /// Al corregir a mano la atribución deja de ser una conjetura.
         confidence: z.number().min(0).max(1).optional(),
       }),

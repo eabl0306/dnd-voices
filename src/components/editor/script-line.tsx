@@ -1,8 +1,78 @@
 "use client";
 
+import { useState } from "react";
 import { GlyphBox } from "@/components/ui";
 import { type CharacterDto, isLineDubious, type LineDto } from "@/lib/dto";
+import { formatDuration } from "@/lib/format";
 import { characterColor, GLYPH } from "@/lib/tone";
+
+/** Qué puede corregir el DM de una línea sin reanalizar la escena. */
+export type LineAudioPatch = { pauseAfter?: number; fadeOutMs?: number };
+
+/**
+ * Campo numérico en ms que confirma al salir o con Enter.
+ *
+ * Guarda un borrador local: mandar un PATCH por cada tecla saturaría la API y
+ * el refresco pisaría lo que el DM está escribiendo a medias.
+ */
+function MsField({
+  label,
+  value,
+  max,
+  step,
+  ariaLabel,
+  onCommit,
+}: {
+  label: string;
+  value: number;
+  max: number;
+  step: number;
+  ariaLabel: string;
+  onCommit: (value: number) => void;
+}) {
+  const [draft, setDraft] = useState(String(value));
+  const [lastValue, setLastValue] = useState(value);
+
+  // Si el servidor cambia el valor (otro refresco, reanálisis), el borrador
+  // deja de tener sentido y se descarta. Ajustar el estado durante el render —
+  // y no en un efecto — evita pintar un frame con el valor viejo.
+  if (value !== lastValue) {
+    setLastValue(value);
+    setDraft(String(value));
+  }
+
+  const commit = () => {
+    const parsed = Number(draft);
+    if (!Number.isFinite(parsed)) {
+      setDraft(String(value));
+      return;
+    }
+    const clamped = Math.max(0, Math.min(max, Math.round(parsed)));
+    setDraft(String(clamped));
+    if (clamped !== value) onCommit(clamped);
+  };
+
+  return (
+    <label className="flex items-center gap-[5px] font-mono text-[10.5px] text-text3">
+      {label}
+      <input
+        type="number"
+        min={0}
+        max={max}
+        step={step}
+        value={draft}
+        aria-label={ariaLabel}
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={commit}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") event.currentTarget.blur();
+        }}
+        className="w-[62px] rounded-[5px] border border-line bg-panel2 px-[5px] py-[2px] text-right font-mono text-[11px] text-text"
+      />
+      ms
+    </label>
+  );
+}
 
 /**
  * Una intervención del guion.
@@ -15,17 +85,27 @@ export function ScriptLine({
   line,
   characters,
   tintReview,
+  playing,
   onReassign,
+  onTogglePlay,
+  onDelete,
+  onPatchAudio,
 }: {
   line: LineDto;
   characters: readonly CharacterDto[];
   tintReview: boolean;
+  /** Si el clip de esta línea está sonando ahora mismo. */
+  playing: boolean;
   onReassign: (lineId: string, characterId: string) => void;
+  onTogglePlay: (lineId: string) => void;
+  onDelete: (lineId: string) => void;
+  onPatchAudio: (lineId: string, patch: LineAudioPatch) => void;
 }) {
   const dubious = isLineDubious(line);
   const speaker = characters.find((character) => character.id === line.characterId);
   const isNarration = line.isNarration || speaker?.isNarrator === true;
   const color = speaker ? characterColor(speaker.id) : "var(--text3)";
+  const ordinal = line.order + 1;
 
   return (
     <div
@@ -51,7 +131,7 @@ export function ScriptLine({
             </div>
           ) : (
             <select
-              aria-label={`Personaje de la intervención ${line.order + 1}`}
+              aria-label={`Personaje de la intervención ${ordinal}`}
               value={line.characterId ?? ""}
               onChange={(event) => onReassign(line.id, event.target.value)}
               className="w-full appearance-none rounded-[5px] px-[6px] py-[3px] font-mono text-[12px] font-medium"
@@ -100,6 +180,60 @@ export function ScriptLine({
         >
           {line.text}
         </span>
+      </div>
+
+      <div className="flex flex-none flex-col items-end gap-[6px]">
+        <div className="flex items-center gap-[6px]">
+          {line.durationMs !== null && (
+            <span className="font-mono text-[10.5px] text-text3">
+              {formatDuration(line.durationMs)}
+            </span>
+          )}
+          {line.hasAudio && (
+            <button
+              type="button"
+              onClick={() => onTogglePlay(line.id)}
+              aria-label={
+                playing
+                  ? `Pausar la intervención ${ordinal}`
+                  : `Escuchar la intervención ${ordinal}`
+              }
+              aria-pressed={playing}
+              className={`grid h-[24px] w-[24px] place-items-center rounded-full border text-[10px] transition ${
+                playing
+                  ? "border-accent bg-accent-soft text-accent"
+                  : "border-line text-text2 hover:border-accent hover:text-accent"
+              }`}
+            >
+              {playing ? GLYPH.pause : GLYPH.play}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => onDelete(line.id)}
+            aria-label={`Quitar la intervención ${ordinal}`}
+            className="grid h-[24px] w-[24px] place-items-center rounded-[6px] border border-line text-[11px] text-text3 transition hover:border-err hover:text-err"
+          >
+            {GLYPH.close}
+          </button>
+        </div>
+
+        <MsField
+          label="pausa"
+          value={line.pauseAfter}
+          max={10_000}
+          step={50}
+          ariaLabel={`Pausa tras la intervención ${ordinal} en milisegundos`}
+          onCommit={(pauseAfter) => onPatchAudio(line.id, { pauseAfter })}
+        />
+        <MsField
+          label="decaimiento"
+          value={line.fadeOutMs}
+          max={2_000}
+          step={20}
+          ariaLabel={`Decaimiento de la intervención ${ordinal} en milisegundos`}
+          onCommit={(fadeOutMs) => onPatchAudio(line.id, { fadeOutMs })}
+        />
       </div>
     </div>
   );

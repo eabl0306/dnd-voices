@@ -5,6 +5,8 @@ export type Segment = {
   path: string;
   /** Silencio en ms insertado después del clip. */
   pauseAfterMs: number;
+  /** Fundido de salida manual en ms. 0 = el clip termina tal cual llegó. */
+  fadeOutMs: number;
 };
 
 /** Valores que devuelve la pasada de medición de loudnorm. */
@@ -28,65 +30,21 @@ export type FilterGraph = {
 const FORMAT = `aformat=sample_fmts=fltp:sample_rates=${SAMPLE_RATE}:channel_layouts=mono`;
 
 /**
- * Umbral por debajo del cual se considera silencio.
+ * Los clips se montan tal cual llegan del proveedor: sin recortar silencios y
+ * sin fundidos automáticos.
  *
- * −45 dB y no el −60 dB de manual: v3 no deja silencio digital entre frases,
- * deja fondo a −47 dB. A −60 dB no se tocaba nada. Verificado transcribiendo la
- * voz más susurrada del reparto antes y después: a −45 dB no se pierde ninguna
- * palabra, tampoco una `s` final, que es lo que primero se cae.
- */
-const FLOOR = "-45dB";
-
-/**
- * Arranque mudo del clip. Se deja un respiro mínimo para no entrar de golpe, y
- * un fundido de 10 ms porque recortar deja la primera muestra a media onda.
- */
-const TRIM_HEAD = `silenceremove=start_periods=1:start_silence=0.05:start_threshold=${FLOOR},afade=t=in:d=0.01`;
-
-/**
- * Techo de los huecos *dentro* de una intervención.
+ * Hubo tres iteraciones de limpieza automática (recorte a 0,35 s, recorte sólo
+ * de bordes, desvanecido global de 40 ms) y en la prueba A/B contra el montaje
+ * crudo el crudo ganó siempre: cada regla global arreglaba unos clips y
+ * estropeaba otros. El control fino queda en manos del DM, por línea:
+ * `pauseAfter` para el silencio y `fadeOutMs` para el decaimiento.
  *
- * `silenceremove` conserva `stop_duration` + `stop_silence` de cada tramo y tira
- * el resto, así que este 0,70 s es el máximo que sobrevive. Antes era 0,35 s y
- * aplastaba por igual la pausa buena de un punto y la basura del proveedor: la
- * escena montada tenía una mediana de silencio de 0,26 s y sonaba atropellada.
- * A 0,70 s la pausa natural de v3 tras un punto pasa entera y sólo se recorta lo
- * que ya es tiempo muerto.
+ * El fundido va del revés —`afade=t=in` sobre el audio invertido— porque así es
+ * un fundido de salida sin tener que saber cuánto dura el clip.
  */
-const CAP_INTERNAL = `silenceremove=stop_periods=-1:stop_duration=0.70:stop_threshold=${FLOOR}`;
-
-/**
- * Desvanecido al final de cada clip.
- *
- * Medido sobre una escena real: 25 de 66 clips terminan en seco, con los últimos
- * 30 ms todavía a nivel de voz —hasta −18 dB—. El proveedor corta justo en el
- * último fonema y no deja que decaiga. Las palabras están completas (verificado
- * transcribiendo), pero el salto brusco a silencio suena a frase amputada.
- *
- * 40 ms es un compromiso: basta para que la muestra final sea cero y desaparezca
- * el chasquido, y es bastante menos que los 100-150 ms que dura una `s` final,
- * así que no se atenúa la consonante que precisamente se quiere oír.
- */
-const FADE_OUT_S = 0.04;
-
-/**
- * Cola del clip, donde el proveedor deja hasta 1,4 s de nada.
- *
- * Va del revés porque `stop_periods=1` no recorta el final: corta en el primer
- * silencio interno y tira todo lo que venga después. Invirtiendo, la cola pasa a
- * ser la cabeza y `start_periods` sí la trata bien. El desvanecido se cuela en
- * la misma inversión: `afade=t=in` sobre el audio invertido es un fundido de
- * salida sin tener que saber cuánto dura el clip.
- */
-const TRIM_TAIL = [
-  "areverse",
-  `silenceremove=start_periods=1:start_silence=0.08:start_threshold=${FLOOR}`,
-  `afade=t=in:d=${FADE_OUT_S}`,
-  "areverse",
-].join(",");
-
-/** Limpieza completa de un clip: bordes fuera, pausas internas respetadas. */
-const TRIM_SILENCE = [TRIM_HEAD, CAP_INTERNAL, TRIM_TAIL].join(",");
+function fadeOut(ms: number): string {
+  return `areverse,afade=t=in:d=${(ms / 1000).toFixed(3)},areverse`;
+}
 
 const TARGET = "I=-16:TP=-1.5:LRA=11";
 
@@ -152,8 +110,9 @@ export function buildFilterGraph(
   };
 
   for (const segment of segments) {
-    push(["-i", segment.path], `${FORMAT},${TRIM_SILENCE}`);
-    // El silencio generado no se recorta: es justo la pausa que queremos.
+    const chain =
+      segment.fadeOutMs > 0 ? `${FORMAT},${fadeOut(segment.fadeOutMs)}` : FORMAT;
+    push(["-i", segment.path], chain);
     if (segment.pauseAfterMs > 0) push(silence(segment.pauseAfterMs), FORMAT);
   }
 

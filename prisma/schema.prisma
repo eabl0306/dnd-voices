@@ -217,6 +217,8 @@ model Line {
   confidence  Float      @default(1)
   /// Pausa en ms que se inserta después de esta línea al montar el audio.
   pauseAfter  Int        @default(350)
+  /// Fundido de salida en ms que se aplica al clip al montar. 0 = tal cual llega.
+  fadeOutMs   Int        @default(0)
 
   /// Clave de caché: hash(text + voiceId + settings + model). Evita re-facturar TTS.
   cacheKey    String?
