@@ -110,7 +110,14 @@ export async function renderScene(renderId: string): Promise<RenderSummary> {
 
   await db.render.update({
     where: { id: renderId },
-    data: { status: "RUNNING", progress: 0, cacheHits: 0, charsBilled: 0, error: null },
+    data: {
+      status: "RUNNING",
+      progress: 0,
+      cacheHits: 0,
+      charsBilled: 0,
+      totalLines: scene.lines.length,
+      error: null,
+    },
   });
   await db.scene.update({ where: { id: scene.id }, data: { status: "RENDERING" } });
 

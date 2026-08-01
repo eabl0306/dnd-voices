@@ -5,6 +5,7 @@ test.describe("autenticación", () => {
   test("la raíz redirige a login sin sesión", async ({ page }) => {
     await page.goto("/");
     await expect(page).toHaveURL(/\/login$/);
+    await expect(page.getByRole("heading", { name: "Entra a tu mesa" })).toBeVisible();
   });
 
   test("alta, cierre y reentrada de un usuario", async ({ page }) => {
@@ -34,6 +35,11 @@ test.describe("autenticación", () => {
     await page.getByRole("button", { name: "Entrar" }).click();
 
     await expect(page.getByRole("alert")).toBeVisible();
+    await expect(page).toHaveURL(/\/login$/);
+  });
+
+  test("una zona privada sin sesión manda a login", async ({ page }) => {
+    await page.goto("/voices");
     await expect(page).toHaveURL(/\/login$/);
   });
 });

@@ -23,6 +23,7 @@ model User {
   sessions      Session[]
   accounts      Account[]
   campaigns     Campaign[]
+  voices        Voice[]
 
   @@map("user")
 }
@@ -88,6 +89,7 @@ model Campaign {
   user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   characters  Character[]
   scenes      Scene[]
+  voices      Voice[]
 
   @@index([userId])
 }
@@ -97,12 +99,47 @@ enum VoiceStrategy {
   DESIGNED
   /// Voz del pool compartido + ajustes propios de stability/similarity/style.
   POOL
+  /// Voz concreta elegida a mano de la biblioteca. Queda fijada, sin IA de por medio.
+  LIBRARY
 }
 
 enum VoiceStatus {
   PENDING
   READY
   FAILED
+}
+
+enum VoiceProvider {
+  ELEVENLABS
+  OPENAI
+  AZURE
+}
+
+/// Voz del proveedor registrada por el usuario, reutilizable entre personajes.
+model Voice {
+  id         String        @id @default(cuid())
+  userId     String
+  name       String
+  provider   VoiceProvider @default(ELEVENLABS)
+  /// voice_id en el proveedor.
+  externalId String
+  model      String        @default("eleven_multilingual_v2")
+  /// Descriptores cortos que se muestran bajo el nombre ("barítono", "seco").
+  tags       String[]      @default([])
+  /// Null = biblioteca de la cuenta. Con valor = sólo visible en esa campaña.
+  campaignId String?
+  /// La creó Voice Design. Aparece sola en el pool de la campaña que la generó.
+  generated  Boolean       @default(false)
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  campaign   Campaign?     @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  characters Character[]
+
+  @@unique([userId, externalId])
+  @@index([userId])
+  @@index([campaignId])
 }
 
 model Character {
@@ -126,8 +163,11 @@ model Character {
   /// VoiceSettings de ElevenLabs (stability, similarityBoost, style, speed...).
   voiceSettings Json?
   voiceError    String?
+  /// Voz de la biblioteca elegida a mano. Sólo con estrategia LIBRARY.
+  voiceRefId    String?
 
   campaign      Campaign      @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  voiceRef      Voice?        @relation(fields: [voiceRefId], references: [id], onDelete: SetNull)
   lines         Line[]
 
   @@unique([campaignId, name])
@@ -202,6 +242,8 @@ model Render {
   progress     Int          @default(0)
   /// Líneas servidas desde caché en esta ejecución: mide el ahorro real.
   cacheHits    Int          @default(0)
+  /// Líneas de la escena al renderizar. Con cacheHits da el ratio exacto.
+  totalLines   Int          @default(0)
   charsBilled  Int          @default(0)
   audioPath    String?
   durationMs   Int?

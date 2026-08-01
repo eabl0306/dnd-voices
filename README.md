@@ -11,6 +11,7 @@ todo con pausas y normaliza el resultado.
 | Pieza | Elección |
 |---|---|
 | App | Next.js 16 (App Router) + React 19 + TypeScript estricto |
+| Interfaz | Tailwind CSS 4 sobre tokens en oklch, temas claro y oscuro |
 | Base de datos | PostgreSQL + Prisma 7 |
 | Auth | better-auth (email + contraseña) con rate limit propio |
 | Cola | BullMQ + Redis, con un worker aparte |
@@ -83,6 +84,21 @@ el límite en 5, agota el alta y verifica que los cinco primeros intentos pasan
 y los siguientes reciben un 429. Va en serie y sin reintentos: el contador es
 por IP y vive en el servidor.
 
+## Vistas
+
+La app es un dashboard: barra lateral fija (selector de campaña, navegación,
+cuenta) y un área de contenido con cabecera propia.
+
+| Ruta | Vista |
+|---|---|
+| `/login` | Alta y acceso |
+| `/campaigns` | Rejilla de campañas |
+| `/campaigns/[id]` | Resumen: métricas y «requiere tu atención» |
+| `/campaigns/[id]/characters` | Reparto y estado de cada voz |
+| `/campaigns/[id]/scenes` | Tabla de escenas |
+| `/scenes/[id]` | Editor: texto crudo → guion → render |
+| `/voices` | Biblioteca de voces de la cuenta |
+
 ## Cómo está organizado
 
 ```
@@ -128,11 +144,22 @@ credenciales de producción durante la compilación.
 **La normalización de audio se hace al final, no clip a clip.** Normalizar cada
 voz por separado aplanaría justo el contraste entre un susurro y un grito.
 
-**Dos estrategias de voz.** `DESIGNED` genera una voz única con Voice Design y
-consume un slot del plan de ElevenLabs; `POOL` reutiliza una voz existente y sólo
-ajusta `stability`/`similarityBoost`/`style`/`speed`. El narrador y los
-protagonistas usan la primera, los secundarios la segunda: los planes limitan
-cuántas voces propias puedes guardar, y varias campañas agotan la cuota rápido.
+**Tres estrategias de voz.** `DESIGNED` genera una voz única con Voice Design y
+consume un slot del plan de ElevenLabs; `POOL` deja que Claude reutilice una voz
+ya registrada y sólo ajuste `stability`/`similarityBoost`/`style`/`speed`;
+`LIBRARY` fija una voz concreta que eliges tú, sin IA de por medio. Los planes
+limitan cuántas voces propias puedes guardar, así que la primera se reserva al
+narrador y a los protagonistas.
+
+**Las voces viven en la cuenta, no en la campaña.** Una fila en `Voice` por cada
+voz del proveedor, con su `voice_id` y su modelo. Las que genera Voice Design se
+registran solas y quedan marcadas como del pool de la campaña que las creó, que
+es lo que permite reutilizarlas después sin volver a generar nada.
+
+**Los estados nunca se comunican sólo con color.** Siempre color + glifo + palabra
+(`✓ ≡ ★ ↻ ! ?`). Una atribución dudosa lleva cuatro señales redundantes: borde,
+fondo, subrayado discontinuo y etiqueta. Es la única acción que el DM tiene que
+hacer a mano y no puede depender de distinguir ámbar de verde.
 
 **La confianza de la atribución es honesta a propósito.** Por debajo de 0.7 la
 línea se marca en ámbar para revisión manual. Un prompt que devolviera siempre
@@ -144,6 +171,9 @@ línea se marca en ámbar para revisión manual. Un prompt que devolviera siempr
 ## Pendiente
 
 - Elegir manualmente entre las previews de Voice Design (ahora se guarda la primera).
+- Progreso del render por personaje: el worker ya sabe cuál está sintetizando,
+  pero la barra sólo publica el porcentaje.
+- Reordenar y dividir intervenciones del guion desde el editor.
 - Música y ambiente de fondo bajo la mezcla.
 - Storage en S3/R2: `src/lib/storage/index.ts` está aislado para eso.
 - Persistir el rate limit fuera de memoria si se escala el web a varias réplicas.

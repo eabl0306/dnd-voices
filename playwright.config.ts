@@ -10,6 +10,9 @@ const BASE_URL = process.env.E2E_BASE_URL ?? "http://localhost:3000";
 const RATE_LIMIT_URL = process.env.RATE_LIMIT_BASE_URL;
 const RATE_LIMIT_SPEC = /rate-limit\.spec\.ts/;
 
+/** Sólo la suite principal contra local necesita que Playwright arranque la app. */
+const managesServer = !process.env.E2E_BASE_URL && !RATE_LIMIT_URL;
+
 export default defineConfig({
   testDir: "./tests/e2e",
   fullyParallel: true,
@@ -40,15 +43,19 @@ export default defineConfig({
       : []),
   ],
 
-  // En CI el servidor lo levanta docker compose; en local lo arranca Playwright.
-  ...(process.env.E2E_BASE_URL
-    ? {}
-    : {
+  ...(managesServer
+    ? {
         webServer: {
           command: "npm run dev",
           url: BASE_URL,
-          reuseExistingServer: true,
+          // Sin reutilizar: un dev server ya arrancado lleva el límite real de
+          // producción, y como cada caso crea un usuario desde la misma IP, los
+          // fallos salen como «element not found» en vez de como un 429. Es
+          // preferible un error claro de puerto ocupado.
+          reuseExistingServer: false,
           timeout: 120_000,
+          env: { AUTH_RATE_LIMIT_MAX: "1000" },
         },
-      }),
+      }
+    : {}),
 });

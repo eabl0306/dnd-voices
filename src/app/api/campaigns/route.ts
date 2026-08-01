@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { handler, requireUser } from "@/lib/api";
 import { db } from "@/lib/db";
+import type { CampaignSummary } from "@/lib/dto";
 
 const CreateCampaign = z.object({
   name: z.string().min(1).max(120),
@@ -10,13 +11,20 @@ const CreateCampaign = z.object({
 });
 
 export function GET() {
-  return handler(async () => {
+  return handler(async (): Promise<CampaignSummary[]> => {
     const user = await requireUser();
-    return db.campaign.findMany({
+    const campaigns = await db.campaign.findMany({
       where: { userId: user.id },
       orderBy: { updatedAt: "desc" },
-      include: { _count: { select: { characters: true, scenes: true } } },
+      select: { id: true, name: true, _count: { select: { characters: true, scenes: true } } },
     });
+
+    return campaigns.map((campaign) => ({
+      id: campaign.id,
+      name: campaign.name,
+      characterCount: campaign._count.characters,
+      sceneCount: campaign._count.scenes,
+    }));
   });
 }
 
@@ -30,7 +38,7 @@ export function POST(request: NextRequest) {
         ...body,
         userId: user.id,
         // Toda campaña necesita narrador: crearlo aquí evita que la primera
-        // escena falle por no tener a quién atribuir la descripción.
+        // escena falle por no tener a quién atribuir la narración.
         characters: {
           create: {
             name: "Narrador",
@@ -40,7 +48,6 @@ export function POST(request: NextRequest) {
           },
         },
       },
-      include: { characters: true },
     });
   });
 }

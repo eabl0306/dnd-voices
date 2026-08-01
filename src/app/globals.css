@@ -1,26 +1,163 @@
 @import "tailwindcss";
 
+/* ---------------------------------------------------------------------------
+   Design tokens. Valores literales del handoff de diseño, en oklch.
+   El tema oscuro es el predeterminado: la app se usa en mesa.
+   --------------------------------------------------------------------------- */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg: oklch(0.975 0.003 100);
+  --panel: oklch(1 0 0);
+  --panel2: oklch(0.965 0.004 100);
+  --panel3: oklch(0.94 0.005 100);
+  --line: oklch(0.9 0.005 100);
+  --line2: oklch(0.83 0.007 100);
+  --text: oklch(0.23 0.01 265);
+  --text2: oklch(0.47 0.012 265);
+  --text3: oklch(0.62 0.012 265);
+  --accent: oklch(0.53 0.11 218);
+  --accent-soft: oklch(0.95 0.03 218);
+  --accent-fg: oklch(0.99 0 0);
+  --warn: oklch(0.5 0.12 62);
+  --warn-soft: oklch(0.965 0.032 72);
+  --warn-line: oklch(0.78 0.09 70);
+  --ok: oklch(0.52 0.1 158);
+  --ok-soft: oklch(0.955 0.03 158);
+  --err: oklch(0.53 0.15 25);
+  --err-soft: oklch(0.96 0.035 25);
+  --shadow: 0 1px 2px oklch(0.2 0.02 265 / 0.06), 0 8px 24px oklch(0.2 0.02 265 / 0.05);
+  --overlay: oklch(0.14 0.02 265 / 0.55);
+}
+
+:root[data-theme="dark"] {
+  --bg: oklch(0.165 0.008 265);
+  --panel: oklch(0.205 0.01 265);
+  --panel2: oklch(0.235 0.011 265);
+  --panel3: oklch(0.275 0.013 265);
+  --line: oklch(0.3 0.012 265);
+  --line2: oklch(0.38 0.014 265);
+  --text: oklch(0.94 0.005 265);
+  --text2: oklch(0.73 0.011 265);
+  --text3: oklch(0.58 0.013 265);
+  --accent: oklch(0.74 0.1 215);
+  --accent-soft: oklch(0.28 0.045 215);
+  --accent-fg: oklch(0.16 0.02 265);
+  --warn: oklch(0.8 0.11 78);
+  --warn-soft: oklch(0.28 0.05 78);
+  --warn-line: oklch(0.5 0.08 78);
+  --ok: oklch(0.75 0.1 158);
+  --ok-soft: oklch(0.27 0.04 158);
+  --err: oklch(0.7 0.14 25);
+  --err-soft: oklch(0.28 0.06 25);
+  --shadow: 0 1px 2px oklch(0 0 0 / 0.35), 0 10px 30px oklch(0 0 0 / 0.28);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-bg: var(--bg);
+  --color-panel: var(--panel);
+  --color-panel2: var(--panel2);
+  --color-panel3: var(--panel3);
+  --color-line: var(--line);
+  --color-line2: var(--line2);
+  --color-text: var(--text);
+  --color-text2: var(--text2);
+  --color-text3: var(--text3);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-fg: var(--accent-fg);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-warn-line: var(--warn-line);
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-err: var(--err);
+  --color-err-soft: var(--err-soft);
+
+  --font-sans: var(--font-plex-sans), system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
+  --font-serif: var(--font-plex-serif), Georgia, serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/*
+ * Los resets de elemento van en @layer base a propósito.
+ *
+ * En Tailwind 4 las utilidades viven en una capa, y el CSS sin capa gana a
+ * cualquier capa. Un `button { font: inherit }` suelto anularía `font-mono` y
+ * `text-[11px]` en todos los botones de la app.
+ */
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  button {
+    font: inherit;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  button:disabled {
+    cursor: not-allowed;
+  }
+
+  input,
+  textarea,
+  select {
+    font: inherit;
+    color: inherit;
+  }
+
+  /* Foco visible global: ningún control puede quedarse sin él. */
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 3px;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@keyframes shimmer {
+  0% {
+    background-position: -160% 0;
+  }
+  100% {
+    background-position: 260% 0;
+  }
+}
+
+@keyframes pulseDot {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

@@ -22,7 +22,7 @@ export async function signUpViaApi(
 
 export async function signUpViaUi(page: Page, account: Account): Promise<void> {
   await page.goto("/login");
-  await page.getByRole("button", { name: "Crear una cuenta" }).click();
+  await page.getByRole("button", { name: "Darse de alta" }).click();
   await page.getByLabel("Nombre").fill(account.name);
   await page.getByLabel("Email").fill(account.email);
   await page.getByLabel("Contraseña").fill(account.password);

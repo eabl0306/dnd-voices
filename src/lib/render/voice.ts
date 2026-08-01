@@ -1,26 +1,31 @@
 import { buildDesignBrief, type CastArgs, pickFromPool } from "@/lib/ai/casting";
+import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
+import { listAssignableVoices } from "@/lib/queries/voices";
 import { messageOf } from "@/lib/render/parse";
-import { designVoicePreviews, listPool, saveDesignedVoice } from "@/lib/tts/elevenlabs";
+import { designVoicePreviews, saveDesignedVoice, TTS_MODEL } from "@/lib/tts/elevenlabs";
 import type { VoiceSettings } from "@/lib/types";
 
-type VoiceAssignment = {
+type Assignment = {
   voiceId: string;
+  voiceRefId: string;
   voiceBrief: string;
-  voiceSettings: VoiceSettings;
+  voiceSettings: VoiceSettings | null;
 };
 
+type Context = CastArgs & { campaignId: string; characterId: string; userId: string };
+
 /**
- * Diseña una voz nueva y la guarda en la cuenta.
+ * Diseña una voz nueva, la guarda en el proveedor y la registra en la
+ * biblioteca de la campaña.
  *
- * OJO: guardar consume un slot del plan de ElevenLabs, que limita cuántas
- * voces propias puedes tener. Por eso esta rama se reserva para el narrador y
- * los protagonistas.
+ * Guardar consume un slot del plan de ElevenLabs, que limita cuántas voces
+ * propias puedes tener: por eso esta rama se reserva al narrador y a los
+ * protagonistas. La fila en `Voice` es lo que luego permite reutilizarla desde
+ * la estrategia de pool sin volver a generar nada.
  */
-async function designVoice(
-  args: CastArgs & { campaignId: string; characterId: string },
-): Promise<VoiceAssignment> {
-  const brief = await buildDesignBrief(args);
+async function designVoice(context: Context): Promise<Assignment> {
+  const brief = await buildDesignBrief(context);
   const previews = await designVoicePreviews({
     voiceDescription: brief.voiceDescription,
     previewText: brief.previewText,
@@ -29,23 +34,76 @@ async function designVoice(
   const first = previews[0];
   if (!first) throw new Error("Voice Design no devolvió ninguna preview.");
 
-  const voiceId = await saveDesignedVoice({
-    name: `${args.campaign.campaignName} — ${args.character.name}`,
+  const externalId = await saveDesignedVoice({
+    name: `${context.campaign.campaignName} — ${context.character.name}`,
     description: brief.voiceDescription,
     generatedVoiceId: first.generatedVoiceId,
-    labels: { campaign: args.campaignId, character: args.characterId },
+    labels: { campaign: context.campaignId, character: context.characterId },
   });
 
-  return { voiceId, voiceBrief: brief.voiceDescription, voiceSettings: brief.settings };
+  const voice = await db.voice.create({
+    data: {
+      userId: context.userId,
+      name: context.character.name,
+      provider: "ELEVENLABS",
+      externalId,
+      model: TTS_MODEL,
+      campaignId: context.campaignId,
+      generated: true,
+    },
+  });
+
+  return {
+    voiceId: externalId,
+    voiceRefId: voice.id,
+    voiceBrief: brief.voiceDescription,
+    voiceSettings: brief.settings,
+  };
 }
 
-/** Elige una voz existente del catálogo y la ajusta. No gasta slots. */
-async function castFromPool(args: CastArgs): Promise<VoiceAssignment> {
-  const pick = await pickFromPool({ ...args, pool: await listPool() });
+/** Elige una voz ya registrada y la ajusta al personaje. No gasta slots. */
+async function castFromPool(context: Context): Promise<Assignment> {
+  const pool = await listAssignableVoices(context.userId, context.campaignId);
+  if (pool.length === 0) {
+    throw new Error(
+      "No hay voces disponibles todavía. Genera una voz propia o añade una a la biblioteca.",
+    );
+  }
+
+  const pick = await pickFromPool({
+    ...context,
+    pool: pool.map((voice) => ({
+      voiceId: voice.id,
+      name: voice.name,
+      description: voice.generated ? "generada por la IA en esta campaña" : "",
+      labels: Object.fromEntries(voice.tags.map((tag, index) => [`tag${index}`, tag])),
+    })),
+  });
+
+  const chosen = pool.find((voice) => voice.id === pick.voiceId);
+  if (!chosen) throw new Error(`La voz elegida ya no existe: ${pick.voiceId}`);
+
   return {
-    voiceId: pick.voiceId,
+    voiceId: chosen.externalId,
+    voiceRefId: chosen.id,
     voiceBrief: pick.rationale,
     voiceSettings: pick.settings,
+  };
+}
+
+/** El DM ya eligió la voz: sólo hay que fijarla, sin llamar a ningún modelo. */
+async function assignChosenVoice(voiceRefId: string | null, userId: string): Promise<Assignment> {
+  if (!voiceRefId) {
+    throw new Error("No se ha elegido ninguna voz de la biblioteca para este personaje.");
+  }
+  const voice = await db.voice.findFirst({ where: { id: voiceRefId, userId } });
+  if (!voice) throw new Error("La voz elegida ya no está en tu biblioteca.");
+
+  return {
+    voiceId: voice.externalId,
+    voiceRefId: voice.id,
+    voiceBrief: `Elegida a mano: ${voice.name}.`,
+    voiceSettings: null,
   };
 }
 
@@ -61,24 +119,36 @@ export async function provisionVoice(characterId: string): Promise<void> {
     data: { voiceStatus: "PENDING", voiceError: null },
   });
 
-  const args: CastArgs = {
+  const context: Context = {
     character,
     campaign: {
       campaignName: character.campaign.name,
       setting: character.campaign.setting,
       language: character.campaign.language,
     },
+    campaignId: character.campaignId,
+    characterId,
+    userId: character.campaign.userId,
   };
 
   try {
     const assignment =
       character.voiceStrategy === "DESIGNED"
-        ? await designVoice({ ...args, campaignId: character.campaignId, characterId })
-        : await castFromPool(args);
+        ? await designVoice(context)
+        : character.voiceStrategy === "LIBRARY"
+          ? await assignChosenVoice(character.voiceRefId, context.userId)
+          : await castFromPool(context);
 
     await db.character.update({
       where: { id: characterId },
-      data: { ...assignment, voiceStatus: "READY" },
+      data: {
+        voiceId: assignment.voiceId,
+        voiceRefId: assignment.voiceRefId,
+        voiceBrief: assignment.voiceBrief,
+        // `undefined` borraría el Json en vez de dejarlo a null.
+        voiceSettings: assignment.voiceSettings ?? Prisma.DbNull,
+        voiceStatus: "READY",
+      },
     });
   } catch (error) {
     await db.character.update({

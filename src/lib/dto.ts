@@ -1,34 +1,93 @@
 /** Formas que devuelve la API y consume el cliente. */
 
-export type VoiceStrategy = "DESIGNED" | "POOL";
+export type VoiceStrategy = "DESIGNED" | "POOL" | "LIBRARY";
 export type VoiceStatus = "PENDING" | "READY" | "FAILED";
+export type VoiceProvider = "ELEVENLABS" | "OPENAI" | "AZURE";
 export type RenderStatus = "QUEUED" | "RUNNING" | "DONE" | "FAILED";
 
 export type CampaignSummary = {
   id: string;
   name: string;
+  characterCount: number;
+  sceneCount: number;
+};
+
+export type NavData = {
+  user: { email: string; name: string };
+  campaigns: CampaignSummary[];
+  voiceCount: number;
+  active: {
+    id: string;
+    name: string;
+    characterCount: number;
+    sceneCount: number;
+    /** Última escena tocada: alimenta el grupo «Abierto ahora» de la barra lateral. */
+    openScene: { id: string; title: string; pendingReview: number } | null;
+  } | null;
+};
+
+export type CampaignOverview = {
+  id: string;
+  name: string;
   setting: string;
-  language: string;
-  _count: { characters: number; scenes: number };
+  characterCount: number;
+  sceneCount: number;
+  failedVoices: number;
+  pendingVoices: number;
+  renderedScenes: number;
+  pendingReview: number;
+  scenesWithPending: number;
+  charsBilled: number;
+  cacheHitRatio: number;
+  lastRenderAt: string | null;
+  attention: AttentionItem[];
+};
+
+export type AttentionItem = {
+  id: string;
+  glyph: string;
+  tone: "warn" | "err" | "neutral";
+  text: string;
+  href: string;
+};
+
+export type VoiceDto = {
+  id: string;
+  name: string;
+  provider: VoiceProvider;
+  externalId: string;
+  model: string;
+  tags: string[];
+  campaignId: string | null;
+  generated: boolean;
+  usedBy: number;
 };
 
 export type CharacterDto = {
   id: string;
   name: string;
   description: string;
+  backstory: string;
   isNarrator: boolean;
   voiceStrategy: VoiceStrategy;
   voiceStatus: VoiceStatus;
   voiceId: string | null;
+  voiceRefId: string | null;
+  voiceName: string | null;
   voiceBrief: string | null;
   voiceError: string | null;
+  /** Intervenciones suyas en la escena abierta. */
+  lineCount: number;
 };
 
 export type SceneSummary = {
   id: string;
   title: string;
   status: string;
-  _count: { lines: number };
+  excerpt: string;
+  lineCount: number;
+  pendingReview: number;
+  hasAudio: boolean;
 };
 
 export type LineDto = {
@@ -38,6 +97,7 @@ export type LineDto = {
   delivery: string | null;
   confidence: number;
   characterId: string | null;
+  isNarration: boolean;
 };
 
 export type RenderDto = {
@@ -46,6 +106,7 @@ export type RenderDto = {
   progress: number;
   cacheHits: number;
   charsBilled: number;
+  durationMs: number | null;
   error: string | null;
 };
 
@@ -68,4 +129,25 @@ export function isLineDubious(line: Pick<LineDto, "confidence" | "characterId">)
 
 export function isRenderSettled(status: RenderStatus): boolean {
   return status === "DONE" || status === "FAILED";
+}
+
+/** Etiqueta y glifo del estado de voz de un personaje. */
+export function voiceState(character: Pick<CharacterDto, "voiceStatus" | "voiceStrategy">): {
+  glyph: string;
+  label: string;
+  tone: "ok" | "warn" | "err" | "accent";
+} {
+  if (character.voiceStatus === "PENDING") {
+    return { glyph: "↻", label: "Asignando voz…", tone: "warn" };
+  }
+  if (character.voiceStatus === "FAILED") {
+    return { glyph: "!", label: "Voz fallida", tone: "err" };
+  }
+  if (character.voiceStrategy === "DESIGNED") {
+    return { glyph: "✓", label: "Voz generada", tone: "ok" };
+  }
+  if (character.voiceStrategy === "LIBRARY") {
+    return { glyph: "★", label: "Voz asignada a mano", tone: "accent" };
+  }
+  return { glyph: "≡", label: "Voz del pool", tone: "accent" };
 }
