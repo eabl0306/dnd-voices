@@ -7,7 +7,15 @@ export const RENDER_QUEUE = "scene-render";
 export const VOICE_QUEUE = "voice-provision";
 
 export type RenderJob = { renderId: string };
-export type VoiceJob = { characterId: string };
+export type VoiceJob = {
+  characterId: string;
+  /**
+   * Voz que tenía antes del cambio. Va en el trabajo porque quien encola ya ha
+   * escrito la nueva en el personaje, y sin esto el worker no puede saber cuál
+   * se ha quedado sin dueño.
+   */
+  previousVoiceRefId?: string | null;
+};
 
 /**
  * ioredis abre el socket al construirse, así que la conexión y las colas van

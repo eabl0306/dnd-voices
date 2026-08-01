@@ -23,7 +23,7 @@ async function main() {
 
   const voiceWorker = new Worker<VoiceJob>(
     VOICE_QUEUE,
-    async (job) => provisionVoice(job.data.characterId),
+    async (job) => provisionVoice(job.data.characterId, job.data.previousVoiceRefId),
     { connection, concurrency: 2 },
   );
 

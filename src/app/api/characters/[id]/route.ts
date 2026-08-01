@@ -61,7 +61,12 @@ export function PATCH(request: NextRequest, { params }: Params) {
       select: CHARACTER_SELECT,
     });
 
-    if (provisionVoice) await voiceQueue.add("provision", { characterId: id });
+    if (provisionVoice) {
+      await voiceQueue.add("provision", {
+        characterId: id,
+        previousVoiceRefId: current.voiceRefId,
+      });
+    }
     return toCharacterDto(character);
   });
 }

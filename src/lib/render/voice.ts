@@ -161,7 +161,10 @@ async function discardOrphanVoice(
 }
 
 /** Asigna voz a un personaje según su estrategia. */
-export async function provisionVoice(characterId: string): Promise<void> {
+export async function provisionVoice(
+  characterId: string,
+  previousVoiceRefId?: string | null,
+): Promise<void> {
   const character = await db.character.findUniqueOrThrow({
     where: { id: characterId },
     include: { campaign: true },
@@ -204,7 +207,9 @@ export async function provisionVoice(characterId: string): Promise<void> {
       },
     });
 
-    await discardOrphanVoice(character.voiceRefId, assignment.voiceRefId);
+    // `previousVoiceRefId` gana: quien encoló ya pudo escribir la voz nueva en
+    // el personaje, con lo que leerla aquí daría siempre la actual.
+    await discardOrphanVoice(previousVoiceRefId ?? character.voiceRefId, assignment.voiceRefId);
   } catch (error) {
     await db.character.update({
       where: { id: characterId },
