@@ -22,64 +22,57 @@ todo con pausas y normaliza el resultado.
 
 ## Puesta en marcha
 
-Sólo hace falta Docker.
+Todos los comandos están en el `Makefile`. Para ver la lista:
 
 ```bash
-cp .env.example .env      # rellena ANTHROPIC_API_KEY y ELEVENLABS_API_KEY
-docker compose up -d --build
+make
 ```
 
-Arranca Postgres, Redis, las migraciones, el servidor web y el worker.
-La app queda en <http://localhost:3000>.
-
-Genera el secreto de sesión con:
+Sólo hace falta Docker:
 
 ```bash
-openssl rand -base64 32
+make setup   # crea .env con un secreto nuevo e instala dependencias
+make up      # levanta web, worker, base de datos y cola
 ```
+
+La app queda en <http://localhost:3000>. Falta rellenar `ANTHROPIC_API_KEY` y
+`ELEVENLABS_API_KEY` en el `.env` que crea `make setup`.
 
 ### Desarrollo con recarga en caliente
 
-Sólo la infraestructura en Docker; la app en el host. Necesitas Node 20+ y ffmpeg.
+La infraestructura en Docker y la app en el host. Necesitas Node 20+ y ffmpeg
+(`make ffmpeg-check` lo comprueba). En dos terminales:
 
 ```bash
-docker compose -f docker-compose.dev.yml up -d
-npm install
-npx prisma migrate deploy
-```
-
-Después, dos procesos:
-
-```bash
-npm run dev
+make dev
 ```
 
 ```bash
-npm run worker
+make worker
 ```
 
-El worker es obligatorio: sin él las voces se quedan en «asignando voz…» y los
-renders no arrancan.
+Ambos levantan Postgres y Redis por su cuenta si hacen falta. El worker es
+obligatorio: sin él las voces se quedan en «asignando voz…» y los renders no
+arrancan.
 
 ## Tests
 
 ```bash
-npm run test              # unitarios (Vitest)
-npm run test:coverage     # unitarios con cobertura
-npm run test:e2e          # e2e contra `npm run dev`
-npm run test:e2e:docker   # e2e contra el stack dockerizado
-npm run test:e2e:ratelimit # rate limit de auth, en un stack aparte
+make check          # tipos, lint y unitarios: lo mismo que corre en CI
+make verify         # lo anterior más los dos e2e contra Docker
 ```
 
-Los e2e crean un usuario propio por caso para poder correr en paralelo, y todos
-salen de la misma IP. Por eso `test:e2e:docker` sube `AUTH_RATE_LIMIT_MAX` a
-1000: con el valor real de producción se estrangularían entre ellos.
+Por separado: `make test`, `make coverage`, `make e2e`, `make e2e-docker`,
+`make e2e-ratelimit`.
 
-Lanzar `playwright test` a mano contra un `docker compose up` normal falla por
-ese motivo, y el error no lo deja claro. Usa los scripts.
+Los e2e crean un usuario propio por caso para poder correr en paralelo, y todos
+salen de la misma IP. Por eso `make e2e-docker` sube `AUTH_RATE_LIMIT_MAX` a
+1000: con el valor real de producción se estrangularían entre ellos. Lanzar
+`playwright test` a mano contra un stack ya arrancado falla por ese motivo, así
+que usa los objetivos del Makefile.
 
 Como consecuencia, esa suite no comprueba que el límite bloquee nada. Eso lo
-cubre `test:e2e:ratelimit`, que levanta un segundo stack en el puerto 3001 con
+cubre `make e2e-ratelimit`, que levanta un segundo stack en el puerto 3001 con
 el límite en 5, agota el alta y verifica que los cinco primeros intentos pasan
 y los siguientes reciben un 429. Va en serie y sin reintentos: el contador es
 por IP y vive en el servidor.
