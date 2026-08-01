@@ -30,6 +30,9 @@ const schema = z.object({
    * el compose de producción; en desarrollo y en los e2e no existe.
    */
   PUBLIC_DEPLOY: z.enum(["true", "false"]).default("false"),
+
+  /** Renders simultáneos. Cada uno arranca su propio ffmpeg. */
+  RENDER_CONCURRENCY: z.coerce.number().int().positive().max(8).default(2),
   ANTHROPIC_API_KEY: z.string().min(1),
   ELEVENLABS_API_KEY: z.string().min(1),
   STORAGE_DIR: z.string().min(1).default("./storage"),

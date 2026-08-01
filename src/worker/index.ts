@@ -7,18 +7,21 @@ import {
   type VoiceJob,
   connection,
 } from "@/lib/queue";
+import { env } from "@/lib/env";
 import { renderScene } from "@/lib/render/scene";
 import { provisionVoice } from "@/lib/render/voice";
 
 async function main() {
   await assertAvailable();
 
-  // Concurrencia 2: ElevenLabs limita peticiones concurrentes por plan y
-  // subirlo sólo cambia dónde aparecen los 429.
+  // Concurrencia 2 por defecto: ElevenLabs limita peticiones concurrentes por
+  // plan y subirlo sólo cambia dónde aparecen los 429. Se baja a 1 en máquinas
+  // pequeñas, donde lo que manda no es el proveedor sino ffmpeg: dos montajes a
+  // la vez sin swap se quedan sin memoria a mitad de una escena larga.
   const renderWorker = new Worker<RenderJob>(
     RENDER_QUEUE,
     async (job) => renderScene(job.data.renderId),
-    { connection, concurrency: 2 },
+    { connection, concurrency: env.RENDER_CONCURRENCY },
   );
 
   const voiceWorker = new Worker<VoiceJob>(
