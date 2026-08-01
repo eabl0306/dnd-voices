@@ -27,10 +27,19 @@ mv "$DEST/db-$STAMP.dump.tmp" "$DEST/db-$STAMP.dump"
 # --- Audio ------------------------------------------------------------------
 # Sólo los clips: son la caché que evita volver a facturar. Las mezclas se
 # rehacen gratis a partir de ellos, así que no se copian.
-echo "[$(date +%T)] empaquetando los clips…"
-$COMPOSE exec -T web tar -cf - -C /app/storage clips 2>/dev/null \
-  | gzip -1 > "$DEST/clips-$STAMP.tar.gz.tmp"
-mv "$DEST/clips-$STAMP.tar.gz.tmp" "$DEST/clips-$STAMP.tar.gz"
+#
+# El directorio no existe hasta que se sintetiza la primera línea, así que en
+# una instalación recién hecha se salta en vez de dejar el volcado a medias.
+if $COMPOSE exec -T web test -d /app/storage/clips; then
+  echo "[$(date +%T)] empaquetando los clips…"
+  $COMPOSE exec -T web tar -cf - -C /app/storage clips \
+    | gzip -1 > "$DEST/clips-$STAMP.tar.gz.tmp"
+  mv "$DEST/clips-$STAMP.tar.gz.tmp" "$DEST/clips-$STAMP.tar.gz"
+  CLIPS="$DEST/clips-$STAMP.tar.gz"
+else
+  echo "[$(date +%T)] todavía no hay clips que copiar"
+  CLIPS=""
+fi
 
 # --- Rotación ---------------------------------------------------------------
 # Los .tmp de una copia interrumpida se limpian también.
@@ -39,5 +48,6 @@ find "$DEST" -name "db-*.dump" -mtime "+$KEEP_DAYS" -delete
 find "$DEST" -name "clips-*.tar.gz" -mtime "+$KEEP_DAYS" -delete
 
 echo "[$(date +%T)] listo:"
-du -sh "$DEST/db-$STAMP.dump" "$DEST/clips-$STAMP.tar.gz" | sed 's/^/  /'
+# shellcheck disable=SC2086 # $CLIPS va sin comillas a propósito: vacío = omitir
+du -sh "$DEST/db-$STAMP.dump" $CLIPS | sed 's/^/  /'
 df -h "$DEST" | tail -1 | awk '{print "  disco: "$4" libres de "$2}'
