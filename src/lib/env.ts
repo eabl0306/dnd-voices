@@ -14,6 +14,12 @@ const schema = z.object({
    * de prueba, donde todos los casos salen de la misma IP.
    */
   AUTH_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(10),
+  /**
+   * Correos autorizados a darse de alta, separados por comas o saltos de línea.
+   * Vacío deja el alta abierta: la instancia se cierra añadiendo correos, no
+   * quitando la variable.
+   */
+  SIGNUP_ALLOWLIST: z.string().default(""),
 });
 
 type Env = z.infer<typeof schema>;

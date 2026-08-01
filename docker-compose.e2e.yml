@@ -20,6 +20,9 @@ x-app-env: &app-env
   STORAGE_DIR: /app/storage
   # Los casos crean un usuario cada uno desde la misma IP.
   AUTH_RATE_LIMIT_MAX: "1000"
+  # Alta abierta: cada caso se registra con un correo aleatorio. Se sobrescribe
+  # al comprobar a mano que la lista blanca bloquea de verdad.
+  SIGNUP_ALLOWLIST: ${SIGNUP_ALLOWLIST_E2E:-}
 
 services:
   postgres:

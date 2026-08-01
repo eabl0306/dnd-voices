@@ -9,6 +9,7 @@ x-app-env: &app-env
   ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:?define ELEVENLABS_API_KEY en .env}
   STORAGE_DIR: /app/storage
   AUTH_RATE_LIMIT_MAX: ${AUTH_RATE_LIMIT_MAX:-10}
+  SIGNUP_ALLOWLIST: ${SIGNUP_ALLOWLIST:-}
 
 services:
   postgres:
