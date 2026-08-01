@@ -109,6 +109,10 @@ generate: ## Regenera el cliente de Prisma
 studio: db ## Abre Prisma Studio sobre la base de desarrollo
 	DATABASE_URL=$(DEV_DB_URL) npx prisma studio
 
+.PHONY: pauses
+pauses: ## Recalcula las pausas de las escenas ya analizadas (no gasta créditos)
+	npm run pauses:refresh
+
 .PHONY: db-reset
 db-reset: infra ## Borra la base de desarrollo y reaplica las migraciones
 	@read -p "Esto borra todos los datos de desarrollo. ¿Seguir? [s/N] " ok; \

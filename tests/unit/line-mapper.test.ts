@@ -1,11 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { AttributedLine } from "@/lib/ai/schemas";
+import { type KnownCharacter, mapAttributedLines } from "@/lib/render/line-mapper";
 import {
-  type KnownCharacter,
-  mapAttributedLines,
-  PAUSE_CHARACTER_MS,
-  PAUSE_NARRATOR_MS,
-} from "@/lib/render/line-mapper";
+  PAUSE_NARRATOR_BLOCK_MS,
+  PAUSE_SAME_SPEAKER_MS,
+} from "@/lib/render/pauses";
 
 const NARRATOR: KnownCharacter = { id: "n1", name: "Narrador", isNarrator: true };
 const THORIN: KnownCharacter = { id: "c1", name: "Thorin", isNarrator: false };
@@ -67,14 +66,14 @@ describe("mapAttributedLines", () => {
     expect(mapped?.delivery).toBe("susurrando");
   });
 
-  it("da al narrador una pausa más larga que a un personaje", () => {
+  it("calcula la pausa mirando quién habla en la línea siguiente", () => {
+    // El narrador cediendo la palabra pide más aire que Thorin siguiendo solo.
     const result = mapAttributedLines(
-      [line({ speaker: "NARRADOR" }), line({ speaker: "Thorin" })],
+      [line({ speaker: "NARRADOR" }), line({ speaker: "Thorin" }), line({ speaker: "Thorin" })],
       CAST,
     );
-    expect(result[0]?.pauseAfter).toBe(PAUSE_NARRATOR_MS);
-    expect(result[1]?.pauseAfter).toBe(PAUSE_CHARACTER_MS);
-    expect(PAUSE_NARRATOR_MS).toBeGreaterThan(PAUSE_CHARACTER_MS);
+    expect(result[0]?.pauseAfter).toBe(PAUSE_NARRATOR_BLOCK_MS);
+    expect(result[1]?.pauseAfter).toBe(PAUSE_SAME_SPEAKER_MS);
   });
 
   it("devuelve una lista vacía sin líneas", () => {

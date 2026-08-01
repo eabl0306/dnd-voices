@@ -75,6 +75,21 @@ describe("buildFilterGraph", () => {
     expect(chains[1]).not.toContain("silenceremove");
   });
 
+  it("limpia los bordes del clip sin aplastar sus pausas internas", () => {
+    // Recortar todos los silencios por igual dejaba la escena sin aire tras un
+    // punto: la mediana de silencio del montaje caía a 0,26 s.
+    const [chain = ""] = buildFilterGraph([clip("/a.mp3")]).filterComplex.split(";");
+
+    // La cola sólo se puede recortar del revés: stop_periods=1 corta en el
+    // primer silencio interno y descarta el resto del clip.
+    expect(chain.match(/areverse/g)).toHaveLength(2);
+    expect(chain).toContain("start_periods=1");
+
+    // El techo de los huecos internos tiene que dejar pasar la pausa de un punto.
+    const internal = /stop_periods=-1:stop_duration=([\d.]+)/.exec(chain);
+    expect(Number(internal?.[1])).toBeGreaterThanOrEqual(0.6);
+  });
+
   it("mide en la primera pasada y aplica ganancia constante en la segunda", () => {
     // En una sola pasada loudnorm es dinámico y entrecorta el material flojo.
     const measuring = buildFilterGraph([clip("/a.mp3")]);

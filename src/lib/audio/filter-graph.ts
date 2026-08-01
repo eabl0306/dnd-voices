@@ -28,20 +28,42 @@ export type FilterGraph = {
 const FORMAT = `aformat=sample_fmts=fltp:sample_rates=${SAMPLE_RATE}:channel_layouts=mono`;
 
 /**
- * Colapsa los silencios largos que deja el proveedor al final de cada clip.
+ * Umbral por debajo del cual se considera silencio.
  *
- * Medido sobre un clip real: 0,7 s de voz seguidos de 1,4 s a −70 dB y un
- * chasquido final a −46 dB. Ese chasquido impide recortar sólo por la cola, así
- * que se recortan los silencios estén donde estén, dejando 0,35 s —una pausa
- * natural— para no comerse el aire entre frases de una misma intervención.
- *
- * El umbral es −45 dB y no el −60 dB de manual: v3 no deja silencio digital
- * entre frases, deja ~0,7 s de fondo a −47 dB. A −60 dB eso no se tocaba y una
- * línea corta se oía partida por la mitad. Verificado transcribiendo la voz más
- * susurrada del reparto antes y después: −45 dB no se come ninguna palabra.
+ * −45 dB y no el −60 dB de manual: v3 no deja silencio digital entre frases,
+ * deja fondo a −47 dB. A −60 dB no se tocaba nada. Verificado transcribiendo la
+ * voz más susurrada del reparto antes y después: a −45 dB no se pierde ninguna
+ * palabra, tampoco una `s` final, que es lo que primero se cae.
  */
-const TRIM_SILENCE =
-  "silenceremove=stop_periods=-1:stop_duration=0.35:stop_threshold=-45dB";
+const FLOOR = "-45dB";
+
+/** Arranque mudo del clip. Se deja un respiro mínimo para no cortar en seco. */
+const TRIM_HEAD = `silenceremove=start_periods=1:start_silence=0.05:start_threshold=${FLOOR}`;
+
+/**
+ * Techo de los huecos *dentro* de una intervención.
+ *
+ * `silenceremove` conserva `stop_duration` + `stop_silence` de cada tramo y tira
+ * el resto, así que este 0,70 s es el máximo que sobrevive. Antes era 0,35 s y
+ * aplastaba por igual la pausa buena de un punto y la basura del proveedor: la
+ * escena montada tenía una mediana de silencio de 0,26 s y sonaba atropellada.
+ * A 0,70 s la pausa natural de v3 tras un punto pasa entera y sólo se recorta lo
+ * que ya es tiempo muerto.
+ */
+const CAP_INTERNAL = `silenceremove=stop_periods=-1:stop_duration=0.70:stop_threshold=${FLOOR}`;
+
+/**
+ * Cola del clip, donde el proveedor deja hasta 1,4 s de nada.
+ *
+ * Va del revés porque `stop_periods=1` no recorta el final: corta en el primer
+ * silencio interno y tira todo lo que venga después. Invirtiendo, la cola pasa a
+ * ser la cabeza y `start_periods` sí la trata bien. Se dejan 0,08 s para que la
+ * voz termine de decaer en vez de chocar contra el cero absoluto de la pausa.
+ */
+const TRIM_TAIL = `areverse,silenceremove=start_periods=1:start_silence=0.08:start_threshold=${FLOOR},areverse`;
+
+/** Limpieza completa de un clip: bordes fuera, pausas internas respetadas. */
+const TRIM_SILENCE = [TRIM_HEAD, CAP_INTERNAL, TRIM_TAIL].join(",");
 
 const TARGET = "I=-16:TP=-1.5:LRA=11";
 

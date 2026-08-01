@@ -1,5 +1,6 @@
 import { NARRATOR } from "@/lib/ai/prompts/attribution";
 import type { AttributedLine } from "@/lib/ai/schemas";
+import { type PauseContext, pauseAfterFor } from "@/lib/render/pauses";
 
 export type KnownCharacter = { id: string; name: string; isNarrator: boolean };
 
@@ -11,10 +12,6 @@ export type MappedLine = {
   confidence: number;
   pauseAfter: number;
 };
-
-/** El narrador respira más entre bloques que un personaje en mitad de un diálogo. */
-export const PAUSE_NARRATOR_MS = 500;
-export const PAUSE_CHARACTER_MS = 300;
 
 /**
  * Resuelve los nombres devueltos por Claude contra el reparto real.
@@ -32,22 +29,34 @@ export function mapAttributedLines(
     characters.map((character) => [character.name.trim().toLowerCase(), character]),
   );
 
-  return lines.map((line, order) => {
+  // Se resuelve todo el reparto antes de calcular pausas: la pausa de una línea
+  // depende de quién habla en la siguiente, no sólo de quién habla en ella.
+  const resolved = lines.map((line) => {
     const speaker = line.speaker.trim();
-    const character =
+    const match =
       speaker.toUpperCase() === NARRATOR ? narrator : byName.get(speaker.toLowerCase());
 
     // Sin coincidencia se cae al narrador: perder el texto sería peor que
     // atribuirlo mal, y la confianza baja lo marca para revisión en la UI.
-    const resolved = character ?? narrator;
+    return { line, match, character: match ?? narrator };
+  });
+
+  const contextOf = (entry: (typeof resolved)[number]): PauseContext => ({
+    characterId: entry.character?.id ?? null,
+    isNarrator: entry.character?.isNarrator ?? false,
+    text: entry.line.text,
+  });
+
+  return resolved.map((entry, order) => {
+    const next = resolved[order + 1];
 
     return {
       order,
-      characterId: resolved?.id ?? null,
-      text: line.text,
-      delivery: line.delivery.trim() || null,
-      confidence: character ? line.confidence : 0,
-      pauseAfter: resolved?.isNarrator ? PAUSE_NARRATOR_MS : PAUSE_CHARACTER_MS,
+      characterId: entry.character?.id ?? null,
+      text: entry.line.text,
+      delivery: entry.line.delivery.trim() || null,
+      confidence: entry.match ? entry.line.confidence : 0,
+      pauseAfter: pauseAfterFor(contextOf(entry), next && contextOf(next)),
     };
   });
 }

@@ -21,7 +21,8 @@
     "test:e2e:ui": "playwright test --ui",
     "build:worker": "esbuild src/worker/index.ts --bundle --platform=node --target=node24 --format=esm --outfile=dist/worker.mjs --packages=external",
     "test:e2e:docker": "docker compose -f docker-compose.e2e.yml up -d --build --wait && E2E_BASE_URL=http://localhost:3002 playwright test",
-    "test:e2e:ratelimit": "ANTHROPIC_API_KEY=e2e-placeholder ELEVENLABS_API_KEY=e2e-placeholder docker compose -f docker-compose.ratelimit.yml up -d --build --wait --force-recreate web && RATE_LIMIT_BASE_URL=http://localhost:3001 RATE_LIMIT_MAX=5 playwright test --project=rate-limit"
+    "test:e2e:ratelimit": "ANTHROPIC_API_KEY=e2e-placeholder ELEVENLABS_API_KEY=e2e-placeholder docker compose -f docker-compose.ratelimit.yml up -d --build --wait --force-recreate web && RATE_LIMIT_BASE_URL=http://localhost:3001 RATE_LIMIT_MAX=5 playwright test --project=rate-limit",
+    "pauses:refresh": "tsx --env-file=.env scripts/refresh-pauses.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",
